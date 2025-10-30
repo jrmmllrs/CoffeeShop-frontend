@@ -241,26 +241,32 @@ const POS = () => {
                 <h1 className="text-2xl font-bold text-gray-900">☕ CoffeePOS</h1>
               </Link>
               <nav className="ml-10 flex space-x-8">
-                <Link 
-                  to="/dashboard" 
+                <Link
+                  to="/dashboard"
                   className="text-gray-500 hover:text-gray-700 px-3 py-2 text-sm font-medium"
                 >
                   Dashboard
                 </Link>
-                <Link 
-                  to="/products" 
+                <Link
+                  to="/products"
                   className="text-gray-500 hover:text-gray-700 px-3 py-2 text-sm font-medium"
                 >
                   Products
                 </Link>
-                <Link 
-                  to="/pos" 
+                <Link
+                  to="/pos"
                   className="text-green-700 border-b-2 border-green-700 px-3 py-2 text-sm font-medium"
                 >
                   POS
                 </Link>
-                <Link 
-                  to="/reports" 
+                <Link
+                  to="/sales"
+                  className="text-gray-500 hover:text-gray-700 px-3 py-2 text-sm font-medium"
+                >
+                  Sales
+                </Link>
+                <Link
+                  to="/reports"
                   className="text-gray-500 hover:text-gray-700 px-3 py-2 text-sm font-medium"
                 >
                   Reports
