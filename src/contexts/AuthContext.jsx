@@ -1,8 +1,10 @@
 // src/contexts/AuthContext.jsx
 import { createContext, useState, useContext, useEffect } from 'react';
-import apiService from '../services/api';
 
 const AuthContext = createContext();
+
+// Get API URL from environment variables
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -15,74 +17,55 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [token, setToken] = useState(localStorage.getItem('token'));
 
   useEffect(() => {
-    if (token) {
-      // Verify token and get user profile
-      getProfile();
-    } else {
-      setLoading(false);
+    const token = localStorage.getItem('token');
+    const userData = localStorage.getItem('user');
+    
+    if (token && userData) {
+      setUser(JSON.parse(userData));
     }
-  }, [token]);
+    setLoading(false);
+  }, []);
 
   const login = async (credentials) => {
     try {
-      const data = await apiService.login(credentials);
-      if (data.token) {
-        localStorage.setItem('token', data.token);
-        setToken(data.token);
-        setUser(data.user);
-      }
-      return data;
-    } catch (error) {
-      throw error;
-    }
-  };
-
-  const register = async (userData) => {
-    try {
-      const data = await apiService.register(userData);
-      return data;
-    } catch (error) {
-      throw error;
-    }
-  };
-
-  const getProfile = async () => {
-    try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/profile`, {
+      const response = await fetch(`${API_URL}/api/auth/login`, {
+        method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`
-        }
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(credentials),
       });
-      
-      if (response.ok) {
-        const userData = await response.json();
-        setUser(userData);
-      } else {
-        logout();
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Login failed');
       }
+
+      const data = await response.json();
+      
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      setUser(data.user);
+      
+      return data;
     } catch (error) {
-      logout();
-    } finally {
-      setLoading(false);
+      throw error;
     }
   };
 
   const logout = () => {
     localStorage.removeItem('token');
-    setToken(null);
+    localStorage.removeItem('user');
     setUser(null);
   };
 
   const value = {
     user,
     login,
-    register,
     logout,
     loading,
-    token,
     isAuthenticated: !!user
   };
 

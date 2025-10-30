@@ -1,30 +1,95 @@
 // src/App.jsx
-import { AuthProvider } from './contexts/AuthContext';
-import ConnectionTest from './components/ConnectionTest';
-import Login from './components/Login';
-import Dashboard from './components/Dashboard';
-import { useAuth } from './contexts/AuthContext';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from "./contexts/AuthContext";
+import Login from "./components/Login";
+import Dashboard from "./components/Dashboard";
+import Products from "./components/Products";
+import { useAuth } from "./contexts/AuthContext";
 
-function AppContent() {
+// Protected Route Component
+const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
-
+  
   if (loading) {
-    return <div>Loading...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="text-lg text-gray-600">Loading...</div>
+      </div>
+    );
   }
+  
+  return isAuthenticated ? children : <Navigate to="/login" />;
+};
 
-  return (
-    <div className="App">
-      <ConnectionTest />
-      {!isAuthenticated ? <Login /> : <Dashboard />}
-    </div>
-  );
-}
+// Public Route Component (redirect to dashboard if authenticated)
+const PublicRoute = ({ children }) => {
+  const { isAuthenticated, loading } = useAuth();
+  
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="text-lg text-gray-600">Loading...</div>
+      </div>
+    );
+  }
+  
+  return !isAuthenticated ? children : <Navigate to="/dashboard" />;
+};
 
 function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <Router>
+      <AuthProvider>
+        <div className="min-h-screen bg-gray-50">
+          <Routes>
+            {/* Public Routes */}
+            <Route 
+              path="/login" 
+              element={
+                <PublicRoute>
+                  <Login />
+                </PublicRoute>
+              } 
+            />
+            
+            {/* Protected Routes */}
+            <Route 
+              path="/dashboard" 
+              element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              } 
+            />
+            
+            <Route 
+              path="/products" 
+              element={
+                <ProtectedRoute>
+                  <Products />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Default redirect */}
+            <Route path="/" element={<Navigate to="/dashboard" />} />
+            
+            {/* 404 Page */}
+            <Route path="*" element={
+              <div className="flex items-center justify-center min-h-screen">
+                <div className="text-center">
+                  <h1 className="text-4xl font-bold text-gray-900 mb-4">404</h1>
+                  <p className="text-gray-600 mb-4">Page not found</p>
+                  <a href="/dashboard" className="text-green-600 hover:text-green-700">
+                    Go back to Dashboard
+                  </a>
+                </div>
+              </div>
+            } />
+          </Routes>
+        </div>
+      </AuthProvider>
+    </Router>
   );
 }
 
