@@ -135,15 +135,12 @@ const Products = () => {
 
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch(
-        `${API_URL}/api/products/${productId}`,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const response = await fetch(`${API_URL}/api/products/${productId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
       if (!response.ok) throw new Error("Failed to delete product");
 
@@ -230,6 +227,12 @@ const Products = () => {
                   className="text-gray-500 hover:text-gray-700 px-3 py-2 text-sm font-medium"
                 >
                   Reports
+                </Link>
+                <Link
+                  to="/users"
+                  className="text-gray-500 hover:text-gray-700 px-3 py-2 text-sm font-medium"
+                >
+                  Users
                 </Link>
               </nav>
             </div>

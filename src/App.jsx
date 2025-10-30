@@ -5,16 +5,16 @@ import {
   Route,
   Navigate,
 } from "react-router-dom";
-import { AuthProvider } from "./contexts/AuthContext";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import Login from "./components/Login";
 import Dashboard from "./components/Dashboard";
 import Products from "./components/Products";
 import POS from "./components/POS";
-import { useAuth } from "./contexts/AuthContext";
 import Sales from "./components/Sales";
 import Reports from "./components/Reports";
+import UserManagement from "./components/UserManagement";
 
-// Protected Route Component
+// Protected Route Component - Moved INSIDE the main App component
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
 
@@ -29,7 +29,7 @@ const ProtectedRoute = ({ children }) => {
   return isAuthenticated ? children : <Navigate to="/login" />;
 };
 
-// Public Route Component (redirect to dashboard if authenticated)
+// Public Route Component - Moved INSIDE the main App component
 const PublicRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
 
@@ -46,8 +46,8 @@ const PublicRoute = ({ children }) => {
 
 function App() {
   return (
-    <Router>
-      <AuthProvider>
+    <AuthProvider>
+      <Router>
         <div className="min-h-screen bg-gray-50">
           <Routes>
             {/* Public Routes */}
@@ -106,6 +106,15 @@ function App() {
               }
             />
 
+            <Route
+              path="/users"
+              element={
+                <ProtectedRoute>
+                  <UserManagement />
+                </ProtectedRoute>
+              }
+            />
+
             {/* Default redirect */}
             <Route path="/" element={<Navigate to="/dashboard" />} />
 
@@ -131,8 +140,8 @@ function App() {
             />
           </Routes>
         </div>
-      </AuthProvider>
-    </Router>
+      </Router>
+    </AuthProvider>
   );
 }
 
