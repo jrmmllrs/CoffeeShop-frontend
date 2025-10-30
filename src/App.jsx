@@ -4,6 +4,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import Login from "./components/Login";
 import Dashboard from "./components/Dashboard";
 import Products from "./components/Products";
+import POS from "./components/POS";
 import { useAuth } from "./contexts/AuthContext";
 
 // Protected Route Component
@@ -67,6 +68,15 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Products />
+                </ProtectedRoute>
+              } 
+            />
+            
+            <Route 
+              path="/pos" 
+              element={
+                <ProtectedRoute>
+                  <POS />
                 </ProtectedRoute>
               } 
             />

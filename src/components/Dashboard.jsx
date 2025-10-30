@@ -19,36 +19,36 @@ const Dashboard = () => {
     { title: "Pending Orders", value: "2", color: "bg-purple-500", icon: "⏳" }
   ];
 
-  const quickActions = [
-    {
-      title: "Manage Products",
-      description: "Add, edit, or remove products",
-      icon: "📦",
-      path: "/products",
-      color: "bg-blue-500 hover:bg-blue-600"
-    },
-    {
-      title: "New Sale",
-      description: "Process a new customer order",
-      icon: "💰",
-      path: "/sales",
-      color: "bg-green-500 hover:bg-green-600"
-    },
-    {
-      title: "View Inventory",
-      description: "Check stock levels and logs",
-      icon: "📊",
-      path: "/inventory",
-      color: "bg-purple-500 hover:bg-purple-600"
-    },
-    {
-      title: "Sales Report",
-      description: "View sales analytics",
-      icon: "📈",
-      path: "/reports",
-      color: "bg-orange-500 hover:bg-orange-600"
-    }
-  ];
+const quickActions = [
+  {
+    title: "Manage Products",
+    description: "Add, edit, or remove products",
+    icon: "📦",
+    path: "/products",
+    color: "bg-blue-500 hover:bg-blue-600"
+  },
+  {
+    title: "Point of Sale",
+    description: "Process customer orders",
+    icon: "💰",
+    path: "/pos",
+    color: "bg-green-500 hover:bg-green-600"
+  },
+  {
+    title: "View Inventory",
+    description: "Check stock levels and logs",
+    icon: "📊",
+    path: "/inventory",
+    color: "bg-purple-500 hover:bg-purple-600"
+  },
+  {
+    title: "Sales Report",
+    description: "View sales analytics",
+    icon: "📈",
+    path: "/reports",
+    color: "bg-orange-500 hover:bg-orange-600"
+  }
+];
 
   return (
     <div className="min-h-screen bg-gray-50">
