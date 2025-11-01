@@ -568,7 +568,8 @@ const Products = () => {
                   </div>
 
                   {/* Admin Actions */}
-                  {user?.role === "admin" && (
+                  {/* Admin & Manager Actions */}
+                  {(user?.role === "admin" || user?.role === "manager") && (
                     <div className="flex gap-2 pt-4 border-t border-gray-100">
                       <button
                         onClick={() => openModal(product)}
