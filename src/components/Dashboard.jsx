@@ -519,9 +519,9 @@ const Dashboard = () => {
                   <h2 className="text-lg font-semibold text-gray-900">
                     Cashier Performance
                   </h2>
-                  <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                  {/* <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
                     Today
-                  </span>
+                  </span> */}
                 </div>
                 <div className="p-6">
                   <div className="space-y-4">
