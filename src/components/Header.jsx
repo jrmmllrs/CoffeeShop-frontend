@@ -1,5 +1,5 @@
 // src/components/Header.jsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   Coffee,
@@ -12,13 +12,43 @@ import {
   LogOut,
   Menu,
   X,
+  Maximize,
+  Minimize,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 
 const Header = ({ onLogout }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const location = useLocation();
   const { user } = useAuth();
+
+  // Fullscreen toggle function
+  const toggleFullscreen = async () => {
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+        setIsFullscreen(true);
+      } else {
+        await document.exitFullscreen();
+        setIsFullscreen(false);
+      }
+    } catch (err) {
+      console.error("Error toggling fullscreen:", err);
+    }
+  };
+
+  // Listen for fullscreen changes
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    };
+  }, []);
 
   // Define navigation items with role access
   const navItems = [
@@ -90,7 +120,7 @@ const Header = ({ onLogout }) => {
             </div>
             <div className="hidden sm:block">
               <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-amber-700 to-orange-600 bg-clip-text text-transparent">
-                CoffeePOS
+                CafeNova
               </h1>
               <p className="text-xs text-amber-600/80 font-medium">
                 Brew & Manage
@@ -150,18 +180,34 @@ const Header = ({ onLogout }) => {
             </button>
           </div>
 
-          {/* Mobile Menu Button */}
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="lg:hidden p-2 rounded-lg text-gray-600 hover:bg-amber-100/50 transition-colors"
-            aria-label="Toggle menu"
-          >
-            {mobileMenuOpen ? (
-              <X className="w-5 h-5 sm:w-6 sm:h-6" />
-            ) : (
-              <Menu className="w-5 h-5 sm:w-6 sm:h-6" />
-            )}
-          </button>
+          {/* Mobile/Tablet Controls */}
+          <div className="lg:hidden flex items-center space-x-2">
+            {/* Fullscreen Button - Show on mobile and tablet only */}
+            <button
+              onClick={toggleFullscreen}
+              className="p-2 rounded-lg text-gray-600 hover:bg-amber-100/50 transition-colors"
+              aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+            >
+              {isFullscreen ? (
+                <Minimize className="w-5 h-5 sm:w-6 sm:h-6" />
+              ) : (
+                <Maximize className="w-5 h-5 sm:w-6 sm:h-6" />
+              )}
+            </button>
+
+            {/* Mobile Menu Button */}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-2 rounded-lg text-gray-600 hover:bg-amber-100/50 transition-colors"
+              aria-label="Toggle menu"
+            >
+              {mobileMenuOpen ? (
+                <X className="w-5 h-5 sm:w-6 sm:h-6" />
+              ) : (
+                <Menu className="w-5 h-5 sm:w-6 sm:h-6" />
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Mobile Navigation - Responsive */}

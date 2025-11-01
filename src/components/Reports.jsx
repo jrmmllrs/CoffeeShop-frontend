@@ -134,9 +134,14 @@ const Reports = () => {
     });
   };
 
-  const formatHour = (hour) => {
-    const period = hour >= 12 ? "PM" : "AM";
-    const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+const formatHour = (hour) => {
+    // Convert UTC hour to local timezone
+    const now = new Date();
+    const utcDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), hour, 0, 0));
+    const localHour = utcDate.getHours();
+    
+    const period = localHour >= 12 ? "PM" : "AM";
+    const displayHour = localHour === 0 ? 12 : localHour > 12 ? localHour - 12 : localHour;
     return `${displayHour} ${period}`;
   };
 

@@ -204,16 +204,10 @@ const Dashboard = () => {
       const diffDays = Math.floor(diffHours / 24);
       if (diffDays === 1) return "Yesterday";
       return `${diffDays}d ago`;
-    // eslint-disable-next-line no-unused-vars
+      // eslint-disable-next-line no-unused-vars
     } catch (error) {
       return "Unknown time";
     }
-  };
-
-  const formatHour = (hour) => {
-    const period = hour >= 12 ? "PM" : "AM";
-    const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-    return `${displayHour} ${period}`;
   };
 
   const getPerformanceColor = (value, type = "revenue") => {
@@ -674,55 +668,6 @@ const Dashboard = () => {
                         </div>
                       </Link>
                     ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Peak Hours */}
-              <div className="bg-white rounded-2xl shadow-xl border-2 border-amber-200">
-                <div className="px-4 sm:px-6 py-4 border-b-2 border-amber-200">
-                  <h2 className="text-lg font-bold text-amber-900 flex items-center gap-2">
-                    <span>⏰</span> Peak Hours
-                  </h2>
-                </div>
-                <div className="p-4 sm:p-6">
-                  <div className="space-y-4">
-                    {(dashboardData.hourlySales || [])
-                      .slice(0, 4)
-                      .map((hour) => (
-                        <div
-                          key={hour.hour}
-                          className="flex items-center justify-between p-3 bg-amber-50 rounded-xl border border-amber-200"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-lg flex items-center justify-center shadow-sm">
-                              <span className="text-xs font-bold text-white">
-                                {formatHour(hour.hour).split(" ")[0]}
-                              </span>
-                            </div>
-                            <span className="text-sm font-semibold text-amber-900">
-                              {formatHour(hour.hour)}
-                            </span>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-sm font-bold text-emerald-600">
-                              {formatCurrency(hour.total_revenue)}
-                            </p>
-                            <p className="text-xs text-amber-600">
-                              {hour.transaction_count || 0} sales
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    {(!dashboardData.hourlySales ||
-                      dashboardData.hourlySales.length === 0) && (
-                      <div className="text-center py-8">
-                        <div className="text-4xl mb-2">⏰</div>
-                        <p className="text-amber-600 font-medium">
-                          No hourly data available
-                        </p>
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>

@@ -7,6 +7,146 @@ import Header from "./Header";
 // Get API URL from environment variables
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
+// Toast Notification Component
+const Toast = ({ message, type = "success", onClose }) => {
+  useEffect(() => {
+    const timer = setTimeout(onClose, 3000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  const icons = {
+    success: (
+      <svg
+        className="w-5 h-5"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M5 13l4 4L19 7"
+        />
+      </svg>
+    ),
+    error: (
+      <svg
+        className="w-5 h-5"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M6 18L18 6M6 6l12 12"
+        />
+      </svg>
+    ),
+    warning: (
+      <svg
+        className="w-5 h-5"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.35 16.5c-.77.833.192 2.5 1.732 2.5z"
+        />
+      </svg>
+    ),
+  };
+
+  const styles = {
+    success: "bg-gradient-to-r from-green-500 to-emerald-600 text-white",
+    error: "bg-gradient-to-r from-red-500 to-rose-600 text-white",
+    warning: "bg-gradient-to-r from-amber-500 to-orange-600 text-white",
+  };
+
+  return (
+    <div
+      className={`${styles[type]} px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 min-w-[320px] max-w-md animate-slideDown backdrop-blur-sm`}
+    >
+      <div className="flex-shrink-0">{icons[type]}</div>
+      <p className="flex-1 font-medium text-sm">{message}</p>
+      <button
+        onClick={onClose}
+        className="flex-shrink-0 hover:opacity-70 transition-opacity"
+      >
+        <svg
+          className="w-4 h-4"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M6 18L18 6M6 6l12 12"
+          />
+        </svg>
+      </button>
+    </div>
+  );
+};
+
+// Delete Confirmation Modal
+const DeleteConfirmModal = ({ product, onConfirm, onCancel }) => {
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fadeIn">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md animate-scaleUp">
+        <div className="p-8 text-center">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg
+              className="w-8 h-8 text-red-600"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+              />
+            </svg>
+          </div>
+          <h3 className="text-2xl font-bold text-gray-900 mb-2">
+            Delete Product?
+          </h3>
+          <p className="text-gray-600 mb-6">
+            Are you sure you want to delete{" "}
+            <span className="font-semibold text-gray-900">
+              "{product.name}"
+            </span>
+            ? This action cannot be undone.
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={onCancel}
+              className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-3 px-4 rounded-xl font-medium transition-all duration-200"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onConfirm}
+              className="flex-1 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white py-3 px-4 rounded-xl font-medium transition-all duration-200 shadow-lg"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const Products = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -15,6 +155,7 @@ const Products = () => {
   const [error, setError] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
+  const [deleteProduct, setDeleteProduct] = useState(null);
   const [formData, setFormData] = useState({
     name: "",
     price: "",
@@ -25,6 +166,11 @@ const Products = () => {
   const [activeCategory, setActiveCategory] = useState("All");
   const [viewMode, setViewMode] = useState("grid");
   const [searchQuery, setSearchQuery] = useState("");
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message, type = "success") => {
+    setToast({ message, type });
+  };
 
   const handleLogout = () => {
     logout();
@@ -40,6 +186,7 @@ const Products = () => {
       setProducts(data);
     } catch (err) {
       setError(err.message);
+      showToast(err.message, "error");
     } finally {
       setLoading(false);
     }
@@ -124,34 +271,56 @@ const Products = () => {
 
       await fetchProducts();
       closeModal();
+      showToast(
+        editingProduct
+          ? "Product updated successfully!"
+          : "Product created successfully!",
+        "success"
+      );
     } catch (err) {
       setError(err.message);
+      showToast(err.message, "error");
     } finally {
       setLoading(false);
     }
   };
 
-  // Delete product
-  const handleDelete = async (productId) => {
-    if (!window.confirm("Are you sure you want to delete this product?")) {
-      return;
-    }
+  // Delete product - show confirmation
+  const handleDeleteClick = (product) => {
+    setDeleteProduct(product);
+  };
+
+  // Confirm delete
+  const confirmDelete = async () => {
+    if (!deleteProduct) return;
 
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch(`${API_URL}/api/products/${productId}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await fetch(
+        `${API_URL}/api/products/${deleteProduct.id}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
       if (!response.ok) throw new Error("Failed to delete product");
 
       await fetchProducts();
+      showToast("Product deleted successfully!", "success");
     } catch (err) {
       setError(err.message);
+      showToast(err.message, "error");
+    } finally {
+      setDeleteProduct(null);
     }
+  };
+
+  // Cancel delete
+  const cancelDelete = () => {
+    setDeleteProduct(null);
   };
 
   // Quick stock update
@@ -176,8 +345,10 @@ const Products = () => {
       if (!response.ok) throw new Error("Failed to update stock");
 
       await fetchProducts();
+      showToast("Stock updated successfully!", "success");
     } catch (err) {
       setError(err.message);
+      showToast(err.message, "error");
     }
   };
 
@@ -229,6 +400,17 @@ const Products = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50">
+      {/* Toast Notification Container */}
+      {toast && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-[60]">
+          <Toast
+            message={toast.message}
+            type={toast.type}
+            onClose={() => setToast(null)}
+          />
+        </div>
+      )}
+
       {/* Your existing Header component */}
       <Header onLogout={handleLogout} />
 
@@ -567,7 +749,6 @@ const Products = () => {
                     </span>
                   </div>
 
-                  {/* Admin Actions */}
                   {/* Admin & Manager Actions */}
                   {(user?.role === "admin" || user?.role === "manager") && (
                     <div className="flex gap-2 pt-4 border-t border-gray-100">
@@ -591,7 +772,7 @@ const Products = () => {
                         <span className="hidden sm:inline">Edit</span>
                       </button>
                       <button
-                        onClick={() => handleDelete(product.id)}
+                        onClick={() => handleDeleteClick(product)}
                         className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 px-3 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center justify-center gap-1"
                       >
                         <svg
@@ -685,46 +866,50 @@ const Products = () => {
                 </div>
 
                 {/* Admin Actions */}
-                {user?.role === "admin" && (
+                {(user?.role === "admin" || user?.role === "manager") && (
                   <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
-                    <button
-                      onClick={() => handleQuickStockUpdate(product.id, 1)}
-                      className="flex-1 sm:flex-none bg-green-500 hover:bg-green-600 text-white p-2 sm:p-2.5 rounded-lg transition-colors"
-                      title="Add Stock"
-                    >
-                      <svg
-                        className="w-4 h-4 sm:w-5 sm:h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 4v16m8-8H4"
-                        />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={() => handleQuickStockUpdate(product.id, -1)}
-                      className="flex-1 sm:flex-none bg-amber-500 hover:bg-amber-600 text-white p-2 sm:p-2.5 rounded-lg transition-colors"
-                      title="Reduce Stock"
-                    >
-                      <svg
-                        className="w-4 h-4 sm:w-5 sm:h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M20 12H4"
-                        />
-                      </svg>
-                    </button>
+                    {user?.role === "admin" && (
+                      <>
+                        <button
+                          onClick={() => handleQuickStockUpdate(product.id, 1)}
+                          className="flex-1 sm:flex-none bg-green-500 hover:bg-green-600 text-white p-2 sm:p-2.5 rounded-lg transition-colors"
+                          title="Add Stock"
+                        >
+                          <svg
+                            className="w-4 h-4 sm:w-5 sm:h-5"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M12 4v16m8-8H4"
+                            />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => handleQuickStockUpdate(product.id, -1)}
+                          className="flex-1 sm:flex-none bg-amber-500 hover:bg-amber-600 text-white p-2 sm:p-2.5 rounded-lg transition-colors"
+                          title="Reduce Stock"
+                        >
+                          <svg
+                            className="w-4 h-4 sm:w-5 sm:h-5"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M20 12H4"
+                            />
+                          </svg>
+                        </button>
+                      </>
+                    )}
                     <button
                       onClick={() => openModal(product)}
                       className="flex-1 sm:flex-none bg-blue-500 hover:bg-blue-600 text-white p-2 sm:p-2.5 rounded-lg transition-colors"
@@ -745,7 +930,7 @@ const Products = () => {
                       </svg>
                     </button>
                     <button
-                      onClick={() => handleDelete(product.id)}
+                      onClick={() => handleDeleteClick(product)}
                       className="flex-1 sm:flex-none bg-red-500 hover:bg-red-600 text-white p-2 sm:p-2.5 rounded-lg transition-colors"
                       title="Delete Product"
                     >
@@ -798,7 +983,7 @@ const Products = () => {
                 ? "Get started by adding your first product to the inventory."
                 : `No products found in ${activeCategory} category.`}
             </p>
-            {user?.role === "admin" &&
+            {(user?.role === "admin" || user?.role === "manager") &&
               activeCategory === "All" &&
               !searchQuery && (
                 <button
@@ -814,10 +999,10 @@ const Products = () => {
 
       {/* Add/Edit Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto animate-slideUp">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto animate-scaleUp">
             {/* Modal Header */}
-            <div className="sticky top-0 bg-white z-10 flex justify-between items-center p-6 border-b border-gray-200 rounded-t-2xl">
+            <div className="sticky top-0 bg-white z-10 flex justify-between items-center p-6 border-b border-gray-200 rounded-t-3xl">
               <div>
                 <h3 className="text-xl font-bold text-gray-900">
                   {editingProduct ? "Edit Product" : "Add New Product"}
@@ -900,24 +1085,22 @@ const Products = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Category
-                </label>
-                <select
-                  name="category"
-                  value={formData.category}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors duration-200 bg-white"
-                >
-                  <option value="">Select Category</option>
-                  <option value="coffee">☕ Coffee</option>
-                  <option value="tea">🍵 Tea</option>
-                  <option value="pastry">🥐 Pastry</option>
-                  <option value="sandwich">🥪 Sandwich</option>
-                  <option value="beverage">🥤 Beverage</option>
-                  <option value="breakfast">🍳 Breakfast</option>
-                  <option value="dessert">🍰 Dessert</option>
-                </select>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Category
+                  </label>
+                  <input
+                    type="text"
+                    name="category"
+                    value={formData.category}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors duration-200"
+                    placeholder="e.g., Coffee, Tea, Pastry, Dessert"
+                  />
+                  <p className="mt-2 text-xs text-gray-500">
+                    Enter a category name for this product
+                  </p>
+                </div>
               </div>
 
               <div>
@@ -1027,16 +1210,25 @@ const Products = () => {
         </div>
       )}
 
+      {/* Delete Confirmation Modal */}
+      {deleteProduct && (
+        <DeleteConfirmModal
+          product={deleteProduct}
+          onConfirm={confirmDelete}
+          onCancel={cancelDelete}
+        />
+      )}
+
       <style>{`
         @keyframes fadeIn {
           from { opacity: 0; }
           to { opacity: 1; }
         }
         
-        @keyframes slideUp {
+        @keyframes slideDown {
           from { 
             opacity: 0;
-            transform: translateY(20px);
+            transform: translateY(-20px);
           }
           to { 
             opacity: 1;
@@ -1044,12 +1236,27 @@ const Products = () => {
           }
         }
         
+        @keyframes scaleUp {
+          from { 
+            opacity: 0;
+            transform: scale(0.95);
+          }
+          to { 
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+        
         .animate-fadeIn {
           animation: fadeIn 0.2s ease-out;
         }
         
-        .animate-slideUp {
-          animation: slideUp 0.3s ease-out;
+        .animate-slideDown {
+          animation: slideDown 0.3s ease-out;
+        }
+        
+        .animate-scaleUp {
+          animation: scaleUp 0.3s ease-out;
         }
       `}</style>
     </div>
