@@ -1,8 +1,9 @@
 // src/components/Sales.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { Link, useNavigate } from "react-router-dom";
 import Header from "./Header";
+import { Search, Filter, ChevronLeft, ChevronRight, X } from "lucide-react";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
@@ -22,9 +23,35 @@ const Sales = () => {
   });
   const [viewMode, setViewMode] = useState("grid");
 
+  // Search and Filter States
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterPayment, setFilterPayment] = useState("all");
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [sortBy, setSortBy] = useState("newest");
+
+  // Pagination States
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 9;
+
+  // Refresh State
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   const handleLogout = () => {
     logout();
     navigate("/login");
+  };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([fetchSales(), fetchSalesReport()]);
+    } catch (err) {
+      console.error("Error refreshing data:", err);
+    } finally {
+      setTimeout(() => {
+        setIsRefreshing(false);
+      }, 500);
+    }
   };
 
   const fetchSales = async () => {
@@ -94,6 +121,57 @@ const Sales = () => {
       setReportLoading(false);
     }
   };
+
+  // Filter and Search Logic
+  const filteredAndSortedSales = useMemo(() => {
+    let filtered = [...sales];
+
+    // Search filter
+    if (searchTerm) {
+      filtered = filtered.filter(
+        (sale) =>
+          sale.id.toString().includes(searchTerm) ||
+          sale.cashier_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          sale.reference_no?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    // Payment method filter
+    if (filterPayment !== "all") {
+      filtered = filtered.filter(
+        (sale) => sale.payment_method === filterPayment
+      );
+    }
+
+    // Sort
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case "newest":
+          return new Date(b.created_at) - new Date(a.created_at);
+        case "oldest":
+          return new Date(a.created_at) - new Date(b.created_at);
+        case "highest":
+          return parseFloat(b.total) - parseFloat(a.total);
+        case "lowest":
+          return parseFloat(a.total) - parseFloat(b.total);
+        default:
+          return 0;
+      }
+    });
+
+    return filtered;
+  }, [sales, searchTerm, filterPayment, sortBy]);
+
+  // Pagination Logic
+  const totalPages = Math.ceil(filteredAndSortedSales.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentSales = filteredAndSortedSales.slice(startIndex, endIndex);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterPayment, sortBy]);
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat("en-PH", {
@@ -217,6 +295,15 @@ const Sales = () => {
     return acc;
   }, {});
 
+  const clearFilters = () => {
+    setSearchTerm("");
+    setFilterPayment("all");
+    setSortBy("newest");
+  };
+
+  const hasActiveFilters =
+    searchTerm || filterPayment !== "all" || sortBy !== "newest";
+
   useEffect(() => {
     fetchSales();
     fetchSalesReport();
@@ -240,7 +327,6 @@ const Sales = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50">
-      {/* Use Your Existing Header Component */}
       <Header onLogout={handleLogout} />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
@@ -336,11 +422,12 @@ const Sales = () => {
                 </button>
               </div>
               <button
-                onClick={fetchSales}
-                className="px-3 sm:px-4 py-2 rounded-lg bg-white hover:bg-amber-50 border border-amber-200 shadow-md text-amber-700 font-bold text-xs transition-all flex items-center gap-2"
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+                className="px-3 sm:px-4 py-2 rounded-lg bg-white hover:bg-amber-50 border border-amber-200 shadow-md text-amber-700 font-bold text-xs transition-all flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <svg
-                  className="w-4 h-4"
+                  className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`}
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -352,12 +439,14 @@ const Sales = () => {
                     d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                   />
                 </svg>
-                <span className="hidden sm:inline">Refresh</span>
+                <span className="hidden sm:inline">
+                  {isRefreshing ? "Refreshing..." : "Refresh"}
+                </span>
               </button>
             </div>
           </div>
 
-          {/* Stats Grid - Fully Responsive */}
+          {/* Stats Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
             {/* Total Revenue - Featured Card */}
             <div className="sm:col-span-2 relative group overflow-hidden">
@@ -487,7 +576,7 @@ const Sales = () => {
             </div>
           </div>
 
-          {/* Report Widget - Mobile Optimized */}
+          {/* Report Widget */}
           <div className="bg-gradient-to-br from-amber-50 to-orange-100 border-2 border-amber-300 rounded-2xl p-4 sm:p-5 shadow-lg">
             <div className="flex flex-col gap-4">
               <div className="flex items-center gap-3">
@@ -568,7 +657,7 @@ const Sales = () => {
               </div>
             </div>
 
-            {/* Report Results - Responsive Grid */}
+            {/* Report Results */}
             {reportData.length > 0 && (
               <div className="mt-4 pt-4 border-t-2 border-amber-300">
                 <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-3 flex items-center gap-2">
@@ -641,37 +730,104 @@ const Sales = () => {
           </div>
         </div>
 
-        {/* Transactions Section */}
+        {/* Search and Filter Section */}
         <div className="mb-6">
+          <div className="flex flex-col sm:flex-row gap-3 mb-4">
+            {/* Search Bar */}
+            <div className="flex-1 relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search className="w-5 h-5 text-gray-400" />
+              </div>
+              <input
+                type="text"
+                placeholder="Search by ID, cashier, or reference..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-10 py-3 bg-white border-2 border-gray-200 rounded-xl text-sm font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm("")}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                >
+                  <X className="w-5 h-5 text-gray-400 hover:text-gray-600" />
+                </button>
+              )}
+            </div>
+
+            {/* Filter Button */}
+            <button
+              onClick={() => setShowFilterModal(true)}
+              className={`flex items-center gap-2 px-4 py-3 rounded-xl font-bold text-sm transition-all shadow-md ${
+                hasActiveFilters
+                  ? "bg-gradient-to-r from-amber-500 to-orange-600 text-white"
+                  : "bg-white text-gray-700 border-2 border-gray-200 hover:border-amber-300"
+              }`}
+            >
+              <Filter className="w-5 h-5" />
+              <span className="hidden sm:inline">Filters</span>
+              {hasActiveFilters && (
+                <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+              )}
+            </button>
+          </div>
+
+          {/* Active Filters Display */}
+          {hasActiveFilters && (
+            <div className="flex flex-wrap items-center gap-2 mb-4">
+              <span className="text-xs font-bold text-gray-600 uppercase tracking-wide">
+                Active Filters:
+              </span>
+              {filterPayment !== "all" && (
+                <span className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-xs font-bold flex items-center gap-1.5">
+                  Payment: {filterPayment}
+                  <button onClick={() => setFilterPayment("all")}>
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {sortBy !== "newest" && (
+                <span className="px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-xs font-bold flex items-center gap-1.5">
+                  Sort: {sortBy}
+                  <button onClick={() => setSortBy("newest")}>
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {searchTerm && (
+                <span className="px-3 py-1.5 bg-amber-100 text-amber-700 rounded-lg text-xs font-bold flex items-center gap-1.5">
+                  Search: "{searchTerm}"
+                  <button onClick={() => setSearchTerm("")}>
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              <button
+                onClick={clearFilters}
+                className="px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-xs font-bold hover:bg-red-200 transition-all"
+              >
+                Clear All
+              </button>
+            </div>
+          )}
+
+          {/* Results Count */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
             <div>
               <h2 className="text-xl sm:text-2xl font-black text-gray-900 mb-0.5">
                 Transaction History
               </h2>
-              <p className="text-xs text-gray-600">Click to view details</p>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-gray-600 font-semibold">
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14"
-                />
-              </svg>
-              {totalSales} Transactions
+              <p className="text-xs text-gray-600">
+                Showing {currentSales.length} of {filteredAndSortedSales.length}{" "}
+                transactions
+              </p>
             </div>
           </div>
 
           {viewMode === "grid" ? (
-            /* Grid View - Responsive */
+            /* Grid View */
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-              {sales.map((sale) => (
+              {currentSales.map((sale) => (
                 <div
                   key={sale.id}
                   className="group relative bg-white border-2 border-gray-200 rounded-xl sm:rounded-2xl p-4 sm:p-5 hover:shadow-xl hover:border-amber-300 transition-all cursor-pointer overflow-hidden"
@@ -776,7 +932,7 @@ const Sales = () => {
                 </div>
               ))}
 
-              {sales.length === 0 && (
+              {currentSales.length === 0 && (
                 <div className="col-span-full text-center py-12 sm:py-16">
                   <div className="w-16 h-16 sm:w-20 sm:h-20 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                     <svg
@@ -789,21 +945,29 @@ const Sales = () => {
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         strokeWidth={1.5}
-                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
                       />
                     </svg>
                   </div>
                   <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-1">
-                    No transactions yet
+                    No transactions found
                   </h3>
-                  <p className="text-sm text-gray-500">
-                    Sales will appear here as they're processed
+                  <p className="text-sm text-gray-500 mb-4">
+                    Try adjusting your search or filters
                   </p>
+                  {hasActiveFilters && (
+                    <button
+                      onClick={clearFilters}
+                      className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-bold text-sm transition-all"
+                    >
+                      Clear Filters
+                    </button>
+                  )}
                 </div>
               )}
             </div>
           ) : (
-            /* List View - Mobile Optimized Table */
+            /* List View */
             <div className="bg-white border-2 border-gray-200 rounded-xl sm:rounded-2xl overflow-hidden shadow-lg">
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -827,7 +991,7 @@ const Sales = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {sales.map((sale) => (
+                    {currentSales.map((sale) => (
                       <tr
                         key={sale.id}
                         className="hover:bg-amber-50 transition-colors cursor-pointer"
@@ -876,7 +1040,7 @@ const Sales = () => {
                     ))}
                   </tbody>
                 </table>
-                {sales.length === 0 && (
+                {currentSales.length === 0 && (
                   <div className="text-center py-12 sm:py-16">
                     <div className="w-16 h-16 sm:w-20 sm:h-20 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                       <svg
@@ -889,25 +1053,203 @@ const Sales = () => {
                           strokeLinecap="round"
                           strokeLinejoin="round"
                           strokeWidth={1.5}
-                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
                         />
                       </svg>
                     </div>
                     <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-1">
-                      No transactions yet
+                      No transactions found
                     </h3>
-                    <p className="text-sm text-gray-500">
-                      Sales will appear here as they're processed
+                    <p className="text-sm text-gray-500 mb-4">
+                      Try adjusting your search or filters
                     </p>
+                    {hasActiveFilters && (
+                      <button
+                        onClick={clearFilters}
+                        className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-bold text-sm transition-all"
+                      >
+                        Clear Filters
+                      </button>
+                    )}
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Pagination */}
+          {filteredAndSortedSales.length > itemsPerPage && (
+            <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 bg-white border-2 border-gray-200 rounded-xl p-4 shadow-md">
+              <div className="text-sm text-gray-600 font-semibold">
+                Page{" "}
+                <span className="font-black text-gray-900">{currentPage}</span>{" "}
+                of{" "}
+                <span className="font-black text-gray-900">{totalPages}</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() =>
+                    setCurrentPage((prev) => Math.max(1, prev - 1))
+                  }
+                  disabled={currentPage === 1}
+                  className="px-3 py-2 rounded-lg bg-white border-2 border-gray-200 hover:border-amber-300 hover:bg-amber-50 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-gray-200 disabled:hover:bg-white transition-all"
+                >
+                  <ChevronLeft className="w-5 h-5 text-gray-700" />
+                </button>
+
+                <div className="hidden sm:flex items-center gap-1">
+                  {[...Array(totalPages)].map((_, index) => {
+                    const pageNum = index + 1;
+                    const isActive = pageNum === currentPage;
+                    const shouldShow =
+                      pageNum === 1 ||
+                      pageNum === totalPages ||
+                      (pageNum >= currentPage - 1 &&
+                        pageNum <= currentPage + 1);
+
+                    if (!shouldShow) {
+                      if (
+                        pageNum === currentPage - 2 ||
+                        pageNum === currentPage + 2
+                      ) {
+                        return (
+                          <span key={index} className="px-2 text-gray-400">
+                            ...
+                          </span>
+                        );
+                      }
+                      return null;
+                    }
+
+                    return (
+                      <button
+                        key={index}
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`w-10 h-10 rounded-lg font-bold text-sm transition-all ${
+                          isActive
+                            ? "bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg"
+                            : "bg-white border-2 border-gray-200 text-gray-700 hover:border-amber-300 hover:bg-amber-50"
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="sm:hidden text-sm font-bold text-gray-700">
+                  {currentPage} / {totalPages}
+                </div>
+
+                <button
+                  onClick={() =>
+                    setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+                  }
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-2 rounded-lg bg-white border-2 border-gray-200 hover:border-amber-300 hover:bg-amber-50 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-gray-200 disabled:hover:bg-white transition-all"
+                >
+                  <ChevronRight className="w-5 h-5 text-gray-700" />
+                </button>
               </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* Premium Modal - Mobile Responsive */}
+      {/* Filter Modal */}
+      {showFilterModal && (
+        <div className="fixed inset-0 bg-gray-900/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border-2 border-gray-200 animate-slideUp">
+            <div className="bg-gradient-to-r from-amber-600 to-orange-600 p-5 rounded-t-2xl">
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+                    <Filter className="w-5 h-5 text-white" />
+                  </div>
+                  <h3 className="text-xl font-black text-white">
+                    Filter & Sort
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setShowFilterModal(false)}
+                  className="w-10 h-10 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-xl flex items-center justify-center transition-all"
+                >
+                  <X className="w-5 h-5 text-white" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Payment Method Filter */}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 uppercase tracking-wide mb-3">
+                  Payment Method
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {["all", "cash", "card", "gcash"].map((method) => (
+                    <button
+                      key={method}
+                      onClick={() => setFilterPayment(method)}
+                      className={`px-4 py-3 rounded-xl font-bold text-sm capitalize transition-all ${
+                        filterPayment === method
+                          ? "bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                    >
+                      {method}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Sort Options */}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 uppercase tracking-wide mb-3">
+                  Sort By
+                </label>
+                <div className="space-y-2">
+                  {[
+                    { value: "newest", label: "Newest First" },
+                    { value: "oldest", label: "Oldest First" },
+                    { value: "highest", label: "Highest Amount" },
+                    { value: "lowest", label: "Lowest Amount" },
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => setSortBy(option.value)}
+                      className={`w-full px-4 py-3 rounded-xl font-bold text-sm text-left transition-all ${
+                        sortBy === option.value
+                          ? "bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-5 border-t-2 border-gray-200 bg-gray-50 rounded-b-2xl flex gap-3">
+              <button
+                onClick={clearFilters}
+                className="flex-1 py-3 px-4 rounded-xl font-bold text-sm bg-white border-2 border-gray-300 text-gray-700 hover:bg-gray-100 transition-all"
+              >
+                Reset
+              </button>
+              <button
+                onClick={() => setShowFilterModal(false)}
+                className="flex-1 py-3 px-4 rounded-xl font-bold text-sm bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:from-amber-600 hover:to-orange-700 transition-all shadow-lg"
+              >
+                Apply Filters
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sale Details Modal */}
       {showSaleModal && selectedSale && (
         <div className="fixed inset-0 bg-gray-900/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden border-2 border-gray-200 animate-slideUp">
