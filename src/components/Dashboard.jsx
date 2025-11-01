@@ -273,7 +273,7 @@ const Dashboard = () => {
           <div className="mb-6 sm:mb-8">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <h1 className="text-3xl sm:text-4xl font-bold text-amber-900 mb-2">
+                <h1 className="text-2xl sm:text-3xl font-black text-amber-900 mb-1">
                   ☕ Business Overview
                 </h1>
                 <p className="text-amber-700">

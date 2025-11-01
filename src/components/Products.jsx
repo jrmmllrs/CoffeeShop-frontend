@@ -238,7 +238,7 @@ const Products = () => {
         <div className="mb-6 sm:mb-8">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
             <div>
-              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-amber-700 to-amber-900 bg-clip-text text-transparent mb-2">
+              <h2 className="text-2xl sm:text-3xl font-black text-amber-900 mb-1">
                 Product Inventory
               </h2>
               <p className="text-sm sm:text-base text-gray-600">

@@ -304,7 +304,7 @@ const POS = () => {
             <span className="w-1.5 h-1.5 bg-emerald-600 rounded-full animate-pulse"></span>
             Live POS System
           </div>
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-amber-700 to-amber-900 bg-clip-text text-transparent mb-2">
+          <h1 className="text-2xl sm:text-3xl font-black text-amber-900 mb-1">
             Point of Sale
           </h1>
           <p className="text-sm sm:text-base text-gray-600">
