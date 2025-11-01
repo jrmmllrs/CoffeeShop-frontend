@@ -3,15 +3,21 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { Link, useNavigate } from "react-router-dom";
 
-// Get API URL from environment variables
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const Dashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [dashboardData, setDashboardData] = useState({
-    stats: {},
+    stats: {
+      totalProducts: 0,
+      lowStockItems: 0,
+      outOfStockItems: 0,
+      todayRevenue: 0,
+      todaySalesCount: 0,
+    },
     recentSales: [],
     lowStockProducts: [],
     topProducts: [],
@@ -27,23 +33,20 @@ const Dashboard = () => {
   // Fetch dashboard data
   const fetchDashboardData = async () => {
     setLoading(true);
+    setError(null);
     try {
       const token = localStorage.getItem("token");
+      if (!token) {
+        throw new Error("No authentication token found");
+      }
 
-      // Get today's date for filtering
       const today = new Date().toISOString().split("T")[0];
       const todayParams = new URLSearchParams();
       todayParams.append("start_date", today);
       todayParams.append("end_date", today);
 
-      const [
-        productsResponse,
-        salesResponse,
-        todaySalesResponse,
-        inventoryResponse,
-        cashiersResponse,
-        hourlySalesResponse,
-      ] = await Promise.all([
+      // Make API calls with better error handling
+      const responses = await Promise.allSettled([
         fetch(`${API_URL}/api/products`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
@@ -56,7 +59,8 @@ const Dashboard = () => {
         fetch(`${API_URL}/api/inventory/low-stock?threshold=10`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch(`${API_URL}/api/users/cashiers`, {
+        fetch(`${API_URL}/api/users/cashiers/cashiers`, {
+          // Fixed endpoint
           headers: { Authorization: `Bearer ${token}` },
         }),
         fetch(`${API_URL}/api/sales/hourly-sales?${todayParams.toString()}`, {
@@ -64,49 +68,86 @@ const Dashboard = () => {
         }),
       ]);
 
-      if (!productsResponse.ok) throw new Error("Failed to fetch products");
-      const productsData = await productsResponse.json();
+      // Process each response
+      const [
+        productsResponse,
+        salesResponse,
+        todaySalesResponse,
+        inventoryResponse,
+        cashiersResponse,
+        hourlySalesResponse,
+      ] = responses;
 
-      const salesData = salesResponse.ok ? await salesResponse.json() : [];
-      const todaySalesData = todaySalesResponse.ok
-        ? await todaySalesResponse.json()
-        : [];
-      const lowStockData = inventoryResponse.ok
-        ? await inventoryResponse.json()
-        : [];
-      const cashiersData = cashiersResponse.ok
-        ? await cashiersResponse.json()
-        : [];
-      const hourlySalesData = hourlySalesResponse.ok
-        ? await hourlySalesResponse.json()
-        : [];
+      // Helper function to process responses
+      const processResponse = async (response, errorMessage) => {
+        if (response.status === "fulfilled" && response.value.ok) {
+          return await response.value.json();
+        }
+        console.warn(errorMessage, response.reason);
+        return null;
+      };
 
-      // Calculate statistics
-      const totalProducts = productsData.length;
-      const lowStockItems = lowStockData.length;
-      const outOfStockItems = productsData.filter((p) => p.stock === 0).length;
-
-      // Calculate today's revenue
-      const todayRevenue = todaySalesData.reduce(
-        (sum, day) => sum + parseFloat(day.total_revenue || 0),
-        0
+      const productsData = await processResponse(
+        productsResponse,
+        "Failed to fetch products"
+      );
+      const salesData = await processResponse(
+        salesResponse,
+        "Failed to fetch sales"
+      );
+      const todaySalesData = await processResponse(
+        todaySalesResponse,
+        "Failed to fetch today's sales"
+      );
+      const lowStockData = await processResponse(
+        inventoryResponse,
+        "Failed to fetch low stock"
+      );
+      const cashiersData = await processResponse(
+        cashiersResponse,
+        "Failed to fetch cashiers"
+      );
+      const hourlySalesData = await processResponse(
+        hourlySalesResponse,
+        "Failed to fetch hourly sales"
       );
 
-      const todaySalesCount = todaySalesData.reduce(
-        (sum, day) => sum + parseInt(day.total_sales || 0),
-        0
-      );
+      // Calculate statistics with fallbacks
+      const totalProducts = productsData?.length || 0;
+      const lowStockItems = lowStockData?.length || 0;
+      const outOfStockItems =
+        productsData?.filter((p) => p.stock === 0).length || 0;
+
+      // Calculate today's revenue with better error handling
+      let todayRevenue = 0;
+      let todaySalesCount = 0;
+
+      if (todaySalesData) {
+        if (Array.isArray(todaySalesData)) {
+          todayRevenue = todaySalesData.reduce(
+            (sum, day) => sum + parseFloat(day.total_revenue || 0),
+            0
+          );
+          todaySalesCount = todaySalesData.reduce(
+            (sum, day) => sum + parseInt(day.total_sales || 0),
+            0
+          );
+        } else {
+          todayRevenue = parseFloat(todaySalesData.total_revenue || 0);
+          todaySalesCount = parseInt(todaySalesData.total_sales || 0);
+        }
+      }
 
       // Get top selling products
-      const topProducts = productsData
-        .filter((p) => p.sales_count > 0)
+      const topProducts = (productsData || [])
+        .filter((p) => (p.sales_count || 0) > 0)
         .sort((a, b) => (b.sales_count || 0) - (a.sales_count || 0))
         .slice(0, 5);
 
-      // In the fetchDashboardData function, update the cashier performance calculation:
-      const cashierPerformance = cashiersData
+      // Calculate cashier performance
+      const cashierPerformance = (cashiersData || [])
         .map((cashier) => {
-          const cashierSales = salesData.filter(
+          const cashierSales = (salesData || []).filter(
             (sale) => sale.user_id === cashier.id
           );
           const totalSales = cashierSales.reduce(
@@ -116,8 +157,8 @@ const Dashboard = () => {
 
           return {
             id: cashier.id,
-            name: cashier.name,
-            username: cashier.username, // Use username instead of email
+            name: cashier.name || "Unknown Cashier",
+            username: cashier.username,
             salesCount: cashierSales.length,
             totalRevenue: totalSales,
             averageSale:
@@ -134,14 +175,15 @@ const Dashboard = () => {
           todayRevenue,
           todaySalesCount,
         },
-        recentSales: salesData.slice(0, 8),
-        lowStockProducts: lowStockData.slice(0, 5),
+        recentSales: (salesData || []).slice(0, 8),
+        lowStockProducts: (lowStockData || []).slice(0, 5),
         topProducts,
         cashierPerformance,
-        hourlySales: hourlySalesData,
+        hourlySales: hourlySalesData || [],
       });
     } catch (error) {
       console.error("Dashboard data fetch error:", error);
+      setError("Failed to load dashboard data. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -157,16 +199,26 @@ const Dashboard = () => {
 
   // Format relative time
   const formatRelativeTime = (dateString) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
+    if (!dateString) return "Unknown time";
 
-    if (diffMins < 1) return "Just now";
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    return "Yesterday";
+    try {
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffMs = now - date;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+
+      if (diffMins < 1) return "Just now";
+      if (diffMins < 60) return `${diffMins}m ago`;
+      if (diffHours < 24) return `${diffHours}h ago`;
+
+      const diffDays = Math.floor(diffHours / 24);
+      if (diffDays === 1) return "Yesterday";
+      return `${diffDays}d ago`;
+      // eslint-disable-next-line no-unused-vars
+    } catch (error) {
+      return "Unknown time";
+    }
   };
 
   // Format hour for display
@@ -176,86 +228,132 @@ const Dashboard = () => {
     return `${displayHour} ${period}`;
   };
 
+  // Get performance color based on metrics
+  const getPerformanceColor = (value, type = "revenue") => {
+    if (type === "revenue") {
+      if (value > 1000) return "text-green-600";
+      if (value > 500) return "text-yellow-600";
+      return "text-red-600";
+    }
+    return "text-gray-900";
+  };
+
   useEffect(() => {
     fetchDashboardData();
 
-    // Refresh data every 2 minutes
     const interval = setInterval(fetchDashboardData, 120000);
     return () => clearInterval(interval);
   }, []);
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-gray-600">Loading dashboard...</div>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="text-gray-600 font-medium">Loading dashboard...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-500 mb-4">
+            <svg
+              className="w-16 h-16 mx-auto"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1}
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
+            </svg>
+          </div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">
+            Error Loading Dashboard
+          </h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button
+            onClick={fetchDashboardData}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200">
+      <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
-              <Link to="/dashboard" className="flex items-center">
-                <h1 className="text-xl font-semibold text-gray-900">
-                  CoffeePOS
-                </h1>
+              <Link to="/dashboard" className="flex items-center space-x-3">
+                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">CP</span>
+                </div>
+                <h1 className="text-xl font-bold text-gray-900">CoffeePOS</h1>
               </Link>
-              <nav className="ml-8 flex space-x-6">
-                <Link
-                  to="/dashboard"
-                  className="text-gray-900 border-b-2 border-gray-900 px-3 py-2 text-sm font-medium"
-                >
-                  Dashboard
-                </Link>
-                <Link
-                  to="/products"
-                  className="text-gray-500 hover:text-gray-700 px-3 py-2 text-sm font-medium"
-                >
-                  Products
-                </Link>
-                <Link
-                  to="/pos"
-                  className="text-gray-500 hover:text-gray-700 px-3 py-2 text-sm font-medium"
-                >
-                  POS
-                </Link>
-                <Link
-                  to="/sales"
-                  className="text-gray-500 hover:text-gray-700 px-3 py-2 text-sm font-medium"
-                >
-                  Sales
-                </Link>
-                <Link
-                  to="/reports"
-                  className="text-gray-500 hover:text-gray-700 px-3 py-2 text-sm font-medium"
-                >
-                  Reports
-                </Link>
-                <Link
-                  to="/users"
-                  className="text-gray-500 hover:text-gray-700 px-3 py-2 text-sm font-medium"
-                >
-                  Users
-                </Link>
+              <nav className="ml-8 flex space-x-1">
+                {[
+                  { path: "/dashboard", label: "Dashboard" },
+                  { path: "/products", label: "Products" },
+                  { path: "/pos", label: "POS" },
+                  { path: "/sales", label: "Sales" },
+                  { path: "/reports", label: "Reports" },
+                  { path: "/users", label: "Users" },
+                ].map((item) => (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      item.path === "/dashboard"
+                        ? "bg-blue-50 text-blue-700 border border-blue-200"
+                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                    }`}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
               </nav>
             </div>
 
             <div className="flex items-center space-x-4">
               <div className="text-right">
-                <p className="text-sm font-medium text-gray-900">
-                  {user?.name}
+                <p className="text-sm font-semibold text-gray-900">
+                  {user?.name || "User"}
                 </p>
-                <p className="text-xs text-gray-500 capitalize">{user?.role}</p>
+                <p className="text-xs text-gray-500 capitalize">
+                  {user?.role || "User"}
+                </p>
               </div>
               <button
                 onClick={handleLogout}
-                className="text-gray-500 hover:text-gray-700 px-3 py-2 text-sm font-medium"
+                className="flex items-center space-x-2 text-gray-600 hover:text-gray-800 px-3 py-2 text-sm font-medium transition-colors"
               >
-                Logout
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                  />
+                </svg>
+                <span>Logout</span>
               </button>
             </div>
           </div>
@@ -267,32 +365,38 @@ const Dashboard = () => {
         <div className="px-4 sm:px-6 lg:px-8">
           {/* Header Section */}
           <div className="mb-8">
-            <h1 className="text-2xl font-semibold text-gray-900">
-              Business Overview
-            </h1>
-            <p className="text-gray-600 mt-1">
-              Real-time performance and inventory insights
-            </p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">
+                  Business Overview
+                </h1>
+                <p className="text-gray-600 mt-2">
+                  Real-time performance and inventory insights
+                </p>
+              </div>
+              <div className="text-sm text-gray-500">
+                {new Date().toLocaleDateString("en-US", {
+                  weekday: "long",
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}
+              </div>
+            </div>
           </div>
 
           {/* Key Metrics Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div className="bg-white p-6 rounded-lg border border-gray-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">
-                    Today's Revenue
-                  </p>
-                  <p className="text-2xl font-semibold text-gray-900 mt-1">
-                    {formatCurrency(dashboardData.stats.todayRevenue)}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {dashboardData.stats.todaySalesCount || 0} transactions
-                  </p>
-                </div>
-                <div className="text-gray-400">
+            {[
+              {
+                title: "Today's Revenue",
+                value: formatCurrency(dashboardData.stats.todayRevenue),
+                subtitle: `${
+                  dashboardData.stats.todaySalesCount || 0
+                } transactions`,
+                icon: (
                   <svg
-                    className="w-8 h-8"
+                    className="w-6 h-6"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -304,27 +408,20 @@ const Dashboard = () => {
                       d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v1m0 6v1m0-1v1m6-13h2a2 2 0 012 2v2a2 2 0 01-2 2h-2m-4 0H8a2 2 0 01-2-2V6a2 2 0 012-2h2m4 0h4a2 2 0 012 2v2a2 2 0 01-2 2h-4M4 18h2a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2v-2a2 2 0 012-2z"
                     />
                   </svg>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white p-6 rounded-lg border border-gray-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">
-                    Inventory Health
-                  </p>
-                  <p className="text-2xl font-semibold text-gray-900 mt-1">
-                    {dashboardData.stats.totalProducts -
-                      dashboardData.stats.outOfStockItems}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    of {dashboardData.stats.totalProducts} products available
-                  </p>
-                </div>
-                <div className="text-gray-400">
+                ),
+                color: "text-green-600",
+                bgColor: "bg-green-50",
+                borderColor: "border-green-200",
+              },
+              {
+                title: "Inventory Health",
+                value:
+                  dashboardData.stats.totalProducts -
+                  dashboardData.stats.outOfStockItems,
+                subtitle: `of ${dashboardData.stats.totalProducts} products available`,
+                icon: (
                   <svg
-                    className="w-8 h-8"
+                    className="w-6 h-6"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -336,27 +433,20 @@ const Dashboard = () => {
                       d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
                     />
                   </svg>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white p-6 rounded-lg border border-gray-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">
-                    Stock Alerts
-                  </p>
-                  <p className="text-2xl font-semibold text-gray-900 mt-1">
-                    {dashboardData.stats.lowStockItems +
-                      dashboardData.stats.outOfStockItems}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {dashboardData.stats.outOfStockItems} out of stock
-                  </p>
-                </div>
-                <div className="text-gray-400">
+                ),
+                color: "text-blue-600",
+                bgColor: "bg-blue-50",
+                borderColor: "border-blue-200",
+              },
+              {
+                title: "Stock Alerts",
+                value:
+                  dashboardData.stats.lowStockItems +
+                  dashboardData.stats.outOfStockItems,
+                subtitle: `${dashboardData.stats.outOfStockItems} out of stock`,
+                icon: (
                   <svg
-                    className="w-8 h-8"
+                    className="w-6 h-6"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -368,26 +458,18 @@ const Dashboard = () => {
                       d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
                     />
                   </svg>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white p-6 rounded-lg border border-gray-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">
-                    Active Cashiers
-                  </p>
-                  <p className="text-2xl font-semibold text-gray-900 mt-1">
-                    {dashboardData.cashierPerformance.length}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Staff performance
-                  </p>
-                </div>
-                <div className="text-gray-400">
+                ),
+                color: "text-red-600",
+                bgColor: "bg-red-50",
+                borderColor: "border-red-200",
+              },
+              {
+                title: "Active Cashiers",
+                value: dashboardData.cashierPerformance.length,
+                subtitle: "Staff performance",
+                icon: (
                   <svg
-                    className="w-8 h-8"
+                    className="w-6 h-6"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -399,9 +481,32 @@ const Dashboard = () => {
                       d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
                     />
                   </svg>
+                ),
+                color: "text-purple-600",
+                bgColor: "bg-purple-50",
+                borderColor: "border-purple-200",
+              },
+            ].map((metric, index) => (
+              <div
+                key={index}
+                className={`bg-white p-6 rounded-xl border-2 ${metric.borderColor} shadow-sm hover:shadow-md transition-shadow`}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 mb-1">
+                      {metric.title}
+                    </p>
+                    <p className={`text-2xl font-bold ${metric.color} mb-1`}>
+                      {metric.value}
+                    </p>
+                    <p className="text-xs text-gray-500">{metric.subtitle}</p>
+                  </div>
+                  <div className={`p-3 rounded-lg ${metric.bgColor}`}>
+                    <div className={metric.color}>{metric.icon}</div>
+                  </div>
                 </div>
               </div>
-            </div>
+            ))}
           </div>
 
           {/* Main Dashboard Grid */}
@@ -409,39 +514,47 @@ const Dashboard = () => {
             {/* Left Column - Sales & Activity */}
             <div className="xl:col-span-2 space-y-8">
               {/* Cashier Performance */}
-              <div className="bg-white rounded-lg border border-gray-200">
-                <div className="px-6 py-4 border-b border-gray-200">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+                <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
                   <h2 className="text-lg font-semibold text-gray-900">
                     Cashier Performance
                   </h2>
+                  <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                    Today
+                  </span>
                 </div>
                 <div className="p-6">
                   <div className="space-y-4">
-                    {dashboardData.cashierPerformance.map((cashier, index) => (
+                    {dashboardData.cashierPerformance.map((cashier) => (
                       <div
                         key={cashier.id}
-                        className="flex items-center justify-between p-4 border border-gray-100 rounded-lg"
+                        className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                       >
                         <div className="flex items-center space-x-4">
-                          <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                            <span className="text-sm font-medium text-gray-600">
+                          <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-sm">
+                            <span className="text-sm font-semibold text-white">
                               {cashier.name
                                 .split(" ")
                                 .map((n) => n[0])
-                                .join("")}
+                                .join("")
+                                .toUpperCase()}
                             </span>
                           </div>
                           <div>
-                            <p className="font-medium text-gray-900">
+                            <p className="font-semibold text-gray-900">
                               {cashier.name}
                             </p>
                             <p className="text-sm text-gray-500">
-                              {cashier.salesCount} sales
+                              {cashier.salesCount} sales • {cashier.username}
                             </p>
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="font-semibold text-gray-900">
+                          <p
+                            className={`font-bold text-lg ${getPerformanceColor(
+                              cashier.totalRevenue
+                            )}`}
+                          >
                             {formatCurrency(cashier.totalRevenue)}
                           </p>
                           <p className="text-sm text-gray-500">
@@ -451,9 +564,26 @@ const Dashboard = () => {
                       </div>
                     ))}
                     {dashboardData.cashierPerformance.length === 0 && (
-                      <p className="text-gray-500 text-center py-4">
-                        No cashier data available
-                      </p>
+                      <div className="text-center py-8">
+                        <div className="text-gray-400 mb-2">
+                          <svg
+                            className="w-12 h-12 mx-auto"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={1}
+                              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                            />
+                          </svg>
+                        </div>
+                        <p className="text-gray-500">
+                          No cashier data available
+                        </p>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -462,27 +592,44 @@ const Dashboard = () => {
               {/* Recent Transactions & Top Products */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Recent Transactions */}
-                <div className="bg-white rounded-lg border border-gray-200">
-                  <div className="px-6 py-4 border-b border-gray-200">
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+                  <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
                     <h2 className="text-lg font-semibold text-gray-900">
                       Recent Transactions
                     </h2>
+                    <Link
+                      to="/sales"
+                      className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      View all
+                    </Link>
                   </div>
                   <div className="p-6">
-                    <div className="space-y-3">
-                      {dashboardData.recentSales.map((sale, index) => (
+                    <div className="space-y-4">
+                      {dashboardData.recentSales.map((sale) => (
                         <div
                           key={sale.id}
-                          className="flex items-center justify-between py-2"
+                          className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors"
                         >
-                          <div>
-                            <p className="font-medium text-gray-900 text-sm">
-                              {sale.reference_no || `Sale #${sale.id}`}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {formatRelativeTime(sale.created_at)} •{" "}
-                              {sale.payment_method}
-                            </p>
+                          <div className="flex items-center space-x-3">
+                            <div
+                              className={`w-3 h-3 rounded-full ${
+                                sale.payment_method === "cash"
+                                  ? "bg-green-400"
+                                  : sale.payment_method === "card"
+                                  ? "bg-blue-400"
+                                  : "bg-purple-400"
+                              }`}
+                            ></div>
+                            <div>
+                              <p className="font-medium text-gray-900 text-sm">
+                                {sale.reference_no || `Sale #${sale.id}`}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {formatRelativeTime(sale.created_at)} •{" "}
+                                {sale.payment_method}
+                              </p>
+                            </div>
                           </div>
                           <p className="font-semibold text-gray-900 text-sm">
                             {formatCurrency(sale.total)}
@@ -490,33 +637,43 @@ const Dashboard = () => {
                         </div>
                       ))}
                       {dashboardData.recentSales.length === 0 && (
-                        <p className="text-gray-500 text-center py-2">
-                          No recent transactions
-                        </p>
+                        <div className="text-center py-4">
+                          <p className="text-gray-500">
+                            No recent transactions
+                          </p>
+                        </div>
                       )}
                     </div>
                   </div>
                 </div>
 
                 {/* Top Products */}
-                <div className="bg-white rounded-lg border border-gray-200">
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
                   <div className="px-6 py-4 border-b border-gray-200">
                     <h2 className="text-lg font-semibold text-gray-900">
                       Top Products
                     </h2>
                   </div>
                   <div className="p-6">
-                    <div className="space-y-3">
+                    <div className="space-y-4">
                       {dashboardData.topProducts.map((product, index) => (
                         <div
                           key={product.id}
-                          className="flex items-center justify-between py-2"
+                          className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors"
                         >
                           <div className="flex items-center space-x-3">
-                            <div className="w-6 h-6 bg-gray-100 rounded flex items-center justify-center">
-                              <span className="text-xs font-medium text-gray-600">
-                                {index + 1}
-                              </span>
+                            <div
+                              className={`w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold ${
+                                index === 0
+                                  ? "bg-yellow-500"
+                                  : index === 1
+                                  ? "bg-gray-400"
+                                  : index === 2
+                                  ? "bg-orange-500"
+                                  : "bg-blue-500"
+                              }`}
+                            >
+                              {index + 1}
                             </div>
                             <div>
                               <p className="font-medium text-gray-900 text-sm">
@@ -533,9 +690,9 @@ const Dashboard = () => {
                         </div>
                       ))}
                       {dashboardData.topProducts.length === 0 && (
-                        <p className="text-gray-500 text-center py-2">
-                          No product sales data
-                        </p>
+                        <div className="text-center py-4">
+                          <p className="text-gray-500">No product sales data</p>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -546,43 +703,46 @@ const Dashboard = () => {
             {/* Right Column - Inventory & Quick Actions */}
             <div className="space-y-8">
               {/* Stock Alerts */}
-              <div className="bg-white rounded-lg border border-gray-200">
-                <div className="px-6 py-4 border-b border-gray-200">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+                <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
                   <h2 className="text-lg font-semibold text-gray-900">
                     Stock Alerts
                   </h2>
+                  <span className="text-sm text-red-600 bg-red-50 px-2 py-1 rounded">
+                    {dashboardData.lowStockProducts.length} alerts
+                  </span>
                 </div>
                 <div className="p-6">
                   <div className="space-y-3">
-                    {dashboardData.lowStockProducts.map((product, index) => (
+                    {dashboardData.lowStockProducts.map((product) => (
                       <div
                         key={product.id}
-                        className={`p-3 rounded-lg border ${
+                        className={`p-4 rounded-lg border-l-4 ${
                           product.stock === 0
-                            ? "border-red-200 bg-red-50"
-                            : "border-orange-200 bg-orange-50"
+                            ? "border-red-400 bg-red-50"
+                            : "border-orange-400 bg-orange-50"
                         }`}
                       >
                         <div className="flex justify-between items-start">
                           <div>
-                            <p className="font-medium text-gray-900 text-sm">
+                            <p className="font-medium text-gray-900 text-sm mb-1">
                               {product.name}
                             </p>
                             <p
-                              className={`text-xs ${
+                              className={`text-xs font-medium ${
                                 product.stock === 0
                                   ? "text-red-600"
                                   : "text-orange-600"
                               }`}
                             >
                               {product.stock === 0
-                                ? "Out of stock"
-                                : `${product.stock} units left`}
+                                ? "🛑 Out of stock"
+                                : `⚠️ ${product.stock} units left`}
                             </p>
                           </div>
                           <Link
                             to="/products"
-                            className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                            className="text-xs text-blue-600 hover:text-blue-700 font-medium bg-white px-2 py-1 rounded border border-blue-200"
                           >
                             Restock
                           </Link>
@@ -590,16 +750,33 @@ const Dashboard = () => {
                       </div>
                     ))}
                     {dashboardData.lowStockProducts.length === 0 && (
-                      <p className="text-gray-500 text-center py-2">
-                        All products are well stocked
-                      </p>
+                      <div className="text-center py-4">
+                        <div className="text-green-400 mb-2">
+                          <svg
+                            className="w-12 h-12 mx-auto"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={1}
+                              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                            />
+                          </svg>
+                        </div>
+                        <p className="text-gray-500">
+                          All products are well stocked
+                        </p>
+                      </div>
                     )}
                   </div>
                 </div>
               </div>
 
               {/* Quick Actions */}
-              <div className="bg-white rounded-lg border border-gray-200">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
                 <div className="px-6 py-4 border-b border-gray-200">
                   <h2 className="text-lg font-semibold text-gray-900">
                     Quick Actions
@@ -607,129 +784,139 @@ const Dashboard = () => {
                 </div>
                 <div className="p-6">
                   <div className="space-y-3">
-                    <Link
-                      to="/pos"
-                      className="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors"
-                    >
-                      <div className="text-gray-400">
-                        <svg
-                          className="w-5 h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={1.5}
-                            d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v1m0 6v1m0-1v1m6-13h2a2 2 0 012 2v2a2 2 0 01-2 2h-2m-4 0H8a2 2 0 01-2-2V6a2 2 0 012-2h2m4 0h4a2 2 0 012 2v2a2 2 0 01-2 2h-4M4 18h2a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2v-2a2 2 0 012-2z"
-                          />
-                        </svg>
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-900 text-sm">
-                          New Sale
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          Start POS terminal
-                        </p>
-                      </div>
-                    </Link>
-
-                    <Link
-                      to="/products"
-                      className="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors"
-                    >
-                      <div className="text-gray-400">
-                        <svg
-                          className="w-5 h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={1.5}
-                            d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
-                          />
-                        </svg>
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-900 text-sm">
-                          Manage Products
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          Update inventory
-                        </p>
-                      </div>
-                    </Link>
-
-                    <Link
-                      to="/reports"
-                      className="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors"
-                    >
-                      <div className="text-gray-400">
-                        <svg
-                          className="w-5 h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={1.5}
-                            d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                          />
-                        </svg>
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-900 text-sm">
-                          View Reports
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          Analytics & insights
-                        </p>
-                      </div>
-                    </Link>
+                    {[
+                      {
+                        path: "/pos",
+                        title: "New Sale",
+                        subtitle: "Start POS terminal",
+                        icon: (
+                          <svg
+                            className="w-5 h-5"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={1.5}
+                              d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v1m0 6v1m0-1v1m6-13h2a2 2 0 012 2v2a2 2 0 01-2 2h-2m-4 0H8a2 2 0 01-2-2V6a2 2 0 012-2h2m4 0h4a2 2 0 012 2v2a2 2 0 01-2 2h-4M4 18h2a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2v-2a2 2 0 012-2z"
+                            />
+                          </svg>
+                        ),
+                        color: "text-blue-600",
+                        bgColor: "bg-blue-50",
+                      },
+                      {
+                        path: "/products",
+                        title: "Manage Products",
+                        subtitle: "Update inventory",
+                        icon: (
+                          <svg
+                            className="w-5 h-5"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={1.5}
+                              d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+                            />
+                          </svg>
+                        ),
+                        color: "text-green-600",
+                        bgColor: "bg-green-50",
+                      },
+                      {
+                        path: "/reports",
+                        title: "View Reports",
+                        subtitle: "Analytics & insights",
+                        icon: (
+                          <svg
+                            className="w-5 h-5"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={1.5}
+                              d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                            />
+                          </svg>
+                        ),
+                        color: "text-purple-600",
+                        bgColor: "bg-purple-50",
+                      },
+                    ].map((action, index) => (
+                      <Link
+                        key={index}
+                        to={action.path}
+                        className="flex items-center space-x-4 p-4 border border-gray-200 rounded-lg hover:border-gray-300 hover:shadow-sm transition-all"
+                      >
+                        <div className={`p-2 rounded-lg ${action.bgColor}`}>
+                          <div className={action.color}>{action.icon}</div>
+                        </div>
+                        <div>
+                          <p className="font-semibold text-gray-900 text-sm">
+                            {action.title}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {action.subtitle}
+                          </p>
+                        </div>
+                      </Link>
+                    ))}
                   </div>
                 </div>
               </div>
 
               {/* Business Hours Performance */}
-              <div className="bg-white rounded-lg border border-gray-200">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
                 <div className="px-6 py-4 border-b border-gray-200">
                   <h2 className="text-lg font-semibold text-gray-900">
                     Peak Hours
                   </h2>
                 </div>
                 <div className="p-6">
-                  <div className="space-y-3">
-                    {dashboardData.hourlySales
+                  <div className="space-y-4">
+                    {(dashboardData.hourlySales || [])
                       .slice(0, 4)
-                      .map((hour, index) => (
+                      .map((hour) => (
                         <div
                           key={hour.hour}
                           className="flex items-center justify-between py-2"
                         >
-                          <span className="text-sm text-gray-600">
-                            {formatHour(hour.hour)}
-                          </span>
+                          <div className="flex items-center space-x-3">
+                            <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                              <span className="text-xs font-medium text-gray-600">
+                                {formatHour(hour.hour)}
+                              </span>
+                            </div>
+                            <span className="text-sm text-gray-600">
+                              {formatHour(hour.hour)}
+                            </span>
+                          </div>
                           <div className="text-right">
-                            <p className="text-sm font-medium text-gray-900">
+                            <p className="text-sm font-semibold text-gray-900">
                               {formatCurrency(hour.total_revenue)}
                             </p>
                             <p className="text-xs text-gray-500">
-                              {hour.transaction_count} sales
+                              {hour.transaction_count || 0} sales
                             </p>
                           </div>
                         </div>
                       ))}
-                    {dashboardData.hourlySales.length === 0 && (
-                      <p className="text-gray-500 text-center py-2">
-                        No hourly data available
-                      </p>
+                    {(!dashboardData.hourlySales ||
+                      dashboardData.hourlySales.length === 0) && (
+                      <div className="text-center py-4">
+                        <p className="text-gray-500">
+                          No hourly data available
+                        </p>
+                      </div>
                     )}
                   </div>
                 </div>
