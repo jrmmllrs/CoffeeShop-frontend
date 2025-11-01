@@ -246,7 +246,7 @@ const Products = () => {
               </p>
             </div>
 
-            {user?.role === "admin" && (
+            {(user?.role === "admin" || user?.role === "manager") && (
               <button
                 className="bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white px-6 py-3 rounded-xl font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
                 onClick={() => openModal()}
