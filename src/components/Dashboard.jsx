@@ -1,12 +1,12 @@
-// src/components/Dashboard.jsx
 import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { Link, useNavigate } from "react-router-dom";
+import Header from "./Header";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const Dashboard = () => {
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -30,7 +30,6 @@ const Dashboard = () => {
     navigate("/login");
   };
 
-  // Fetch dashboard data
   const fetchDashboardData = async () => {
     setLoading(true);
     setError(null);
@@ -45,7 +44,6 @@ const Dashboard = () => {
       todayParams.append("start_date", today);
       todayParams.append("end_date", today);
 
-      // Make API calls with better error handling
       const responses = await Promise.allSettled([
         fetch(`${API_URL}/api/products`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -60,7 +58,6 @@ const Dashboard = () => {
           headers: { Authorization: `Bearer ${token}` },
         }),
         fetch(`${API_URL}/api/users/cashiers/cashiers`, {
-          // Fixed endpoint
           headers: { Authorization: `Bearer ${token}` },
         }),
         fetch(`${API_URL}/api/sales/hourly-sales?${todayParams.toString()}`, {
@@ -68,7 +65,6 @@ const Dashboard = () => {
         }),
       ]);
 
-      // Process each response
       const [
         productsResponse,
         salesResponse,
@@ -78,7 +74,6 @@ const Dashboard = () => {
         hourlySalesResponse,
       ] = responses;
 
-      // Helper function to process responses
       const processResponse = async (response, errorMessage) => {
         if (response.status === "fulfilled" && response.value.ok) {
           return await response.value.json();
@@ -112,13 +107,11 @@ const Dashboard = () => {
         "Failed to fetch hourly sales"
       );
 
-      // Calculate statistics with fallbacks
       const totalProducts = productsData?.length || 0;
       const lowStockItems = lowStockData?.length || 0;
       const outOfStockItems =
         productsData?.filter((p) => p.stock === 0).length || 0;
 
-      // Calculate today's revenue with better error handling
       let todayRevenue = 0;
       let todaySalesCount = 0;
 
@@ -138,13 +131,11 @@ const Dashboard = () => {
         }
       }
 
-      // Get top selling products
       const topProducts = (productsData || [])
         .filter((p) => (p.sales_count || 0) > 0)
         .sort((a, b) => (b.sales_count || 0) - (a.sales_count || 0))
         .slice(0, 5);
 
-      // Calculate cashier performance
       const cashierPerformance = (cashiersData || [])
         .map((cashier) => {
           const cashierSales = (salesData || []).filter(
@@ -189,7 +180,6 @@ const Dashboard = () => {
     }
   };
 
-  // Format currency
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat("en-PH", {
       style: "currency",
@@ -197,7 +187,6 @@ const Dashboard = () => {
     }).format(amount || 0);
   };
 
-  // Format relative time
   const formatRelativeTime = (dateString) => {
     if (!dateString) return "Unknown time";
 
@@ -215,25 +204,23 @@ const Dashboard = () => {
       const diffDays = Math.floor(diffHours / 24);
       if (diffDays === 1) return "Yesterday";
       return `${diffDays}d ago`;
-      // eslint-disable-next-line no-unused-vars
+    // eslint-disable-next-line no-unused-vars
     } catch (error) {
       return "Unknown time";
     }
   };
 
-  // Format hour for display
   const formatHour = (hour) => {
     const period = hour >= 12 ? "PM" : "AM";
     const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
     return `${displayHour} ${period}`;
   };
 
-  // Get performance color based on metrics
   const getPerformanceColor = (value, type = "revenue") => {
     if (type === "revenue") {
-      if (value > 1000) return "text-green-600";
-      if (value > 500) return "text-yellow-600";
-      return "text-red-600";
+      if (value > 1000) return "text-emerald-600";
+      if (value > 500) return "text-amber-600";
+      return "text-orange-600";
     }
     return "text-gray-900";
   };
@@ -247,10 +234,12 @@ const Dashboard = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <div className="text-gray-600 font-medium">Loading dashboard...</div>
+          <div className="inline-block animate-spin rounded-full h-16 w-16 border-4 border-amber-200 border-t-amber-600 mb-4"></div>
+          <p className="text-xl text-amber-800 font-medium">
+            Brewing your dashboard...
+          </p>
         </div>
       </div>
     );
@@ -258,30 +247,14 @@ const Dashboard = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-red-500 mb-4">
-            <svg
-              className="w-16 h-16 mx-auto"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1}
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-              />
-            </svg>
-          </div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">
-            Error Loading Dashboard
-          </h2>
-          <p className="text-gray-600 mb-4">{error}</p>
+      <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto px-4">
+          <div className="text-6xl mb-4">⚠️</div>
+          <h2 className="text-2xl font-bold text-amber-900 mb-2">Oops!</h2>
+          <p className="text-amber-700 mb-6">{error}</p>
           <button
             onClick={fetchDashboardData}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            className="bg-gradient-to-r from-amber-600 to-orange-600 text-white px-6 py-3 rounded-xl hover:from-amber-700 hover:to-orange-700 transition-all transform hover:scale-105 font-semibold shadow-lg"
           >
             Try Again
           </button>
@@ -291,248 +264,144 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <Link to="/dashboard" className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">CP</span>
-                </div>
-                <h1 className="text-xl font-bold text-gray-900">CoffeePOS</h1>
-              </Link>
-              <nav className="ml-8 flex space-x-1">
-                {[
-                  { path: "/dashboard", label: "Dashboard" },
-                  { path: "/products", label: "Products" },
-                  { path: "/pos", label: "POS" },
-                  { path: "/sales", label: "Sales" },
-                  { path: "/reports", label: "Reports" },
-                  { path: "/users", label: "Users" },
-                ].map((item) => (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      item.path === "/dashboard"
-                        ? "bg-blue-50 text-blue-700 border border-blue-200"
-                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-                    }`}
-                  >
-                    {item.label}
-                  </Link>
-                ))}
-              </nav>
-            </div>
+    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50">
+      <Header onLogout={handleLogout} />
 
-            <div className="flex items-center space-x-4">
-              <div className="text-right">
-                <p className="text-sm font-semibold text-gray-900">
-                  {user?.name || "User"}
-                </p>
-                <p className="text-xs text-gray-500 capitalize">
-                  {user?.role || "User"}
-                </p>
-              </div>
-              <button
-                onClick={handleLogout}
-                className="flex items-center space-x-2 text-gray-600 hover:text-gray-800 px-3 py-2 text-sm font-medium transition-colors"
-              >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                  />
-                </svg>
-                <span>Logout</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto py-8">
+      <main className="max-w-7xl mx-auto py-6 sm:py-8">
         <div className="px-4 sm:px-6 lg:px-8">
           {/* Header Section */}
-          <div className="mb-8">
-            <div className="flex items-center justify-between">
+          <div className="mb-6 sm:mb-8">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">
-                  Business Overview
+                <h1 className="text-3xl sm:text-4xl font-bold text-amber-900 mb-2">
+                  ☕ Business Overview
                 </h1>
-                <p className="text-gray-600 mt-2">
-                  Real-time performance and inventory insights
+                <p className="text-amber-700">
+                  Real-time insights for your coffee shop
                 </p>
               </div>
-              <div className="text-sm text-gray-500">
-                {new Date().toLocaleDateString("en-US", {
-                  weekday: "long",
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })}
+              <div className="bg-white rounded-xl shadow-lg border-2 border-amber-200 px-4 py-2">
+                <p className="text-xs text-amber-600 font-medium">Today</p>
+                <p className="text-sm font-bold text-amber-900">
+                  {new Date().toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                </p>
               </div>
             </div>
           </div>
 
           {/* Key Metrics Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            {[
-              {
-                title: "Today's Revenue",
-                value: formatCurrency(dashboardData.stats.todayRevenue),
-                subtitle: `${
-                  dashboardData.stats.todaySalesCount || 0
-                } transactions`,
-                icon: (
-                  <svg
-                    className="w-6 h-6"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={1.5}
-                      d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v1m0 6v1m0-1v1m6-13h2a2 2 0 012 2v2a2 2 0 01-2 2h-2m-4 0H8a2 2 0 01-2-2V6a2 2 0 012-2h2m4 0h4a2 2 0 012 2v2a2 2 0 01-2 2h-4M4 18h2a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2v-2a2 2 0 012-2z"
-                    />
-                  </svg>
-                ),
-                color: "text-green-600",
-                bgColor: "bg-green-50",
-                borderColor: "border-green-200",
-              },
-              {
-                title: "Inventory Health",
-                value:
-                  dashboardData.stats.totalProducts -
-                  dashboardData.stats.outOfStockItems,
-                subtitle: `of ${dashboardData.stats.totalProducts} products available`,
-                icon: (
-                  <svg
-                    className="w-6 h-6"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={1.5}
-                      d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
-                    />
-                  </svg>
-                ),
-                color: "text-blue-600",
-                bgColor: "bg-blue-50",
-                borderColor: "border-blue-200",
-              },
-              {
-                title: "Stock Alerts",
-                value:
-                  dashboardData.stats.lowStockItems +
-                  dashboardData.stats.outOfStockItems,
-                subtitle: `${dashboardData.stats.outOfStockItems} out of stock`,
-                icon: (
-                  <svg
-                    className="w-6 h-6"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={1.5}
-                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                    />
-                  </svg>
-                ),
-                color: "text-red-600",
-                bgColor: "bg-red-50",
-                borderColor: "border-red-200",
-              },
-              {
-                title: "Active Cashiers",
-                value: dashboardData.cashierPerformance.length,
-                subtitle: "Staff performance",
-                icon: (
-                  <svg
-                    className="w-6 h-6"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={1.5}
-                      d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                    />
-                  </svg>
-                ),
-                color: "text-purple-600",
-                bgColor: "bg-purple-50",
-                borderColor: "border-purple-200",
-              },
-            ].map((metric, index) => (
-              <div
-                key={index}
-                className={`bg-white p-6 rounded-xl border-2 ${metric.borderColor} shadow-sm hover:shadow-md transition-shadow`}
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600 mb-1">
-                      {metric.title}
-                    </p>
-                    <p className={`text-2xl font-bold ${metric.color} mb-1`}>
-                      {metric.value}
-                    </p>
-                    <p className="text-xs text-gray-500">{metric.subtitle}</p>
-                  </div>
-                  <div className={`p-3 rounded-lg ${metric.bgColor}`}>
-                    <div className={metric.color}>{metric.icon}</div>
-                  </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
+            <div className="bg-gradient-to-br from-emerald-500 to-green-600 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-transform">
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-3xl">💰</div>
+                <div className="bg-white bg-opacity-20 rounded-lg px-2 py-1">
+                  <p className="text-xs font-bold text-amber-900">TODAY</p>
                 </div>
               </div>
-            ))}
+              <p className="text-emerald-100 text-sm font-medium mb-1">
+                Revenue
+              </p>
+              <p className="text-2xl sm:text-3xl font-bold mb-1">
+                {formatCurrency(dashboardData.stats.todayRevenue)}
+              </p>
+              <p className="text-xs text-emerald-100">
+                {dashboardData.stats.todaySalesCount || 0} transactions
+              </p>
+            </div>
+
+            <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-transform">
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-3xl">📦</div>
+                <div className="bg-white bg-opacity-20 rounded-lg px-2 py-1">
+                  <p className="text-xs font-bold text-amber-900">STOCK</p>
+                </div>
+              </div>
+              <p className="text-blue-100 text-sm font-medium mb-1">
+                Inventory
+              </p>
+              <p className="text-2xl sm:text-3xl font-bold mb-1">
+                {dashboardData.stats.totalProducts -
+                  dashboardData.stats.outOfStockItems}
+              </p>
+              <p className="text-xs text-blue-100">
+                of {dashboardData.stats.totalProducts} available
+              </p>
+            </div>
+
+            <div className="bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-transform">
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-3xl">⚠️</div>
+                <div className="bg-white bg-opacity-20 rounded-lg px-2 py-1">
+                  <p className="text-xs font-bold text-amber-900">ALERTS</p>
+                </div>
+              </div>
+              <p className="text-amber-100 text-sm font-medium mb-1">
+                Low Stock
+              </p>
+              <p className="text-2xl sm:text-3xl font-bold mb-1">
+                {dashboardData.stats.lowStockItems +
+                  dashboardData.stats.outOfStockItems}
+              </p>
+              <p className="text-xs text-amber-100">
+                {dashboardData.stats.outOfStockItems} out of stock
+              </p>
+            </div>
+
+            <div className="bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-transform">
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-3xl">👥</div>
+                <div className="bg-white bg-opacity-20 rounded-lg px-2 py-1">
+                  <p className="text-xs font-bold text-amber-900">TEAM</p>
+                </div>
+              </div>
+              <p className="text-purple-100 text-sm font-medium mb-1">
+                Cashiers
+              </p>
+              <p className="text-2xl sm:text-3xl font-bold mb-1">
+                {dashboardData.cashierPerformance.length}
+              </p>
+              <p className="text-xs text-purple-100">active staff</p>
+            </div>
           </div>
 
           {/* Main Dashboard Grid */}
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-            {/* Left Column - Sales & Activity */}
-            <div className="xl:col-span-2 space-y-8">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 sm:gap-8">
+            {/* Left Column */}
+            <div className="xl:col-span-2 space-y-6 sm:space-y-8">
               {/* Cashier Performance */}
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-                <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-                  <h2 className="text-lg font-semibold text-gray-900">
-                    Cashier Performance
+              <div className="bg-white rounded-2xl shadow-xl border-2 border-amber-200">
+                <div className="px-4 sm:px-6 py-4 border-b-2 border-amber-200 flex justify-between items-center">
+                  <h2 className="text-lg sm:text-xl font-bold text-amber-900 flex items-center gap-2">
+                    <span>🏆</span> Team Performance
                   </h2>
-                  {/* <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                    Today
-                  </span> */}
+                  <span className="text-xs bg-amber-100 text-amber-700 px-3 py-1 rounded-lg font-semibold">
+                    Live
+                  </span>
                 </div>
-                <div className="p-6">
-                  <div className="space-y-4">
-                    {dashboardData.cashierPerformance.map((cashier) => (
+                <div className="p-4 sm:p-6">
+                  <div className="space-y-3 sm:space-y-4">
+                    {dashboardData.cashierPerformance.map((cashier, index) => (
                       <div
                         key={cashier.id}
-                        className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                        className="flex items-center justify-between p-4 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border-2 border-amber-100 hover:border-amber-300 transition-all"
                       >
-                        <div className="flex items-center space-x-4">
-                          <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-sm">
-                            <span className="text-sm font-semibold text-white">
+                        <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+                          <div
+                            className={`w-12 h-12 rounded-full flex items-center justify-center shadow-md flex-shrink-0 ${
+                              index === 0
+                                ? "bg-gradient-to-br from-yellow-400 to-amber-500"
+                                : index === 1
+                                ? "bg-gradient-to-br from-gray-300 to-gray-400"
+                                : index === 2
+                                ? "bg-gradient-to-br from-orange-400 to-red-500"
+                                : "bg-gradient-to-br from-blue-500 to-purple-600"
+                            }`}
+                          >
+                            <span className="text-sm font-bold text-white">
                               {cashier.name
                                 .split(" ")
                                 .map((n) => n[0])
@@ -540,16 +409,16 @@ const Dashboard = () => {
                                 .toUpperCase()}
                             </span>
                           </div>
-                          <div>
-                            <p className="font-semibold text-gray-900">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-amber-900 truncate">
                               {cashier.name}
                             </p>
-                            <p className="text-sm text-gray-500">
+                            <p className="text-sm text-amber-600 truncate">
                               {cashier.salesCount} sales • {cashier.username}
                             </p>
                           </div>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right ml-4 flex-shrink-0">
                           <p
                             className={`font-bold text-lg ${getPerformanceColor(
                               cashier.totalRevenue
@@ -557,30 +426,16 @@ const Dashboard = () => {
                           >
                             {formatCurrency(cashier.totalRevenue)}
                           </p>
-                          <p className="text-sm text-gray-500">
+                          <p className="text-xs text-amber-600">
                             Avg: {formatCurrency(cashier.averageSale)}
                           </p>
                         </div>
                       </div>
                     ))}
                     {dashboardData.cashierPerformance.length === 0 && (
-                      <div className="text-center py-8">
-                        <div className="text-gray-400 mb-2">
-                          <svg
-                            className="w-12 h-12 mx-auto"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={1}
-                              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                            />
-                          </svg>
-                        </div>
-                        <p className="text-gray-500">
+                      <div className="text-center py-12">
+                        <div className="text-5xl mb-3">👥</div>
+                        <p className="text-amber-600 font-semibold">
                           No cashier data available
                         </p>
                       </div>
@@ -590,55 +445,58 @@ const Dashboard = () => {
               </div>
 
               {/* Recent Transactions & Top Products */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
                 {/* Recent Transactions */}
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-                  <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-                    <h2 className="text-lg font-semibold text-gray-900">
-                      Recent Transactions
+                <div className="bg-white rounded-2xl shadow-xl border-2 border-amber-200">
+                  <div className="px-4 sm:px-6 py-4 border-b-2 border-amber-200 flex justify-between items-center">
+                    <h2 className="text-lg font-bold text-amber-900 flex items-center gap-2">
+                      <span>🧾</span> Recent Sales
                     </h2>
                     <Link
                       to="/sales"
-                      className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                      className="text-sm text-amber-600 hover:text-amber-700 font-semibold"
                     >
-                      View all
+                      View all →
                     </Link>
                   </div>
-                  <div className="p-6">
-                    <div className="space-y-4">
+                  <div className="p-4 sm:p-6">
+                    <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
                       {dashboardData.recentSales.map((sale) => (
                         <div
                           key={sale.id}
-                          className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors"
+                          className="flex items-center justify-between p-3 rounded-xl hover:bg-amber-50 transition-colors border border-transparent hover:border-amber-200"
                         >
-                          <div className="flex items-center space-x-3">
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
                             <div
-                              className={`w-3 h-3 rounded-full ${
+                              className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
                                 sale.payment_method === "cash"
-                                  ? "bg-green-400"
+                                  ? "bg-emerald-500"
                                   : sale.payment_method === "card"
-                                  ? "bg-blue-400"
-                                  : "bg-purple-400"
+                                  ? "bg-blue-500"
+                                  : sale.payment_method === "gcash"
+                                  ? "bg-sky-500"
+                                  : "bg-purple-500"
                               }`}
                             ></div>
-                            <div>
-                              <p className="font-medium text-gray-900 text-sm">
-                                {sale.reference_no || `Sale #${sale.id}`}
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-amber-900 text-sm truncate">
+                                {sale.reference_no || `#${sale.id}`}
                               </p>
-                              <p className="text-xs text-gray-500">
+                              <p className="text-xs text-amber-600 capitalize">
                                 {formatRelativeTime(sale.created_at)} •{" "}
                                 {sale.payment_method}
                               </p>
                             </div>
                           </div>
-                          <p className="font-semibold text-gray-900 text-sm">
+                          <p className="font-bold text-emerald-600 text-sm ml-2 flex-shrink-0">
                             {formatCurrency(sale.total)}
                           </p>
                         </div>
                       ))}
                       {dashboardData.recentSales.length === 0 && (
-                        <div className="text-center py-4">
-                          <p className="text-gray-500">
+                        <div className="text-center py-8">
+                          <div className="text-4xl mb-2">🧾</div>
+                          <p className="text-amber-600 font-medium">
                             No recent transactions
                           </p>
                         </div>
@@ -648,50 +506,53 @@ const Dashboard = () => {
                 </div>
 
                 {/* Top Products */}
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-                  <div className="px-6 py-4 border-b border-gray-200">
-                    <h2 className="text-lg font-semibold text-gray-900">
-                      Top Products
+                <div className="bg-white rounded-2xl shadow-xl border-2 border-amber-200">
+                  <div className="px-4 sm:px-6 py-4 border-b-2 border-amber-200">
+                    <h2 className="text-lg font-bold text-amber-900 flex items-center gap-2">
+                      <span>🔥</span> Top Sellers
                     </h2>
                   </div>
-                  <div className="p-6">
-                    <div className="space-y-4">
+                  <div className="p-4 sm:p-6">
+                    <div className="space-y-3">
                       {dashboardData.topProducts.map((product, index) => (
                         <div
                           key={product.id}
-                          className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors"
+                          className="flex items-center justify-between p-3 rounded-xl hover:bg-amber-50 transition-colors border border-transparent hover:border-amber-200"
                         >
-                          <div className="flex items-center space-x-3">
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
                             <div
-                              className={`w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold ${
+                              className={`w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-bold shadow-md flex-shrink-0 ${
                                 index === 0
-                                  ? "bg-yellow-500"
+                                  ? "bg-gradient-to-br from-yellow-400 to-amber-500"
                                   : index === 1
-                                  ? "bg-gray-400"
+                                  ? "bg-gradient-to-br from-gray-300 to-gray-400"
                                   : index === 2
-                                  ? "bg-orange-500"
-                                  : "bg-blue-500"
+                                  ? "bg-gradient-to-br from-orange-400 to-red-500"
+                                  : "bg-gradient-to-br from-blue-500 to-indigo-600"
                               }`}
                             >
                               {index + 1}
                             </div>
-                            <div>
-                              <p className="font-medium text-gray-900 text-sm">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-amber-900 text-sm truncate">
                                 {product.name}
                               </p>
-                              <p className="text-xs text-gray-500">
+                              <p className="text-xs text-amber-600">
                                 {product.sales_count || 0} sold
                               </p>
                             </div>
                           </div>
-                          <p className="font-semibold text-gray-900 text-sm">
+                          <p className="font-bold text-emerald-600 text-sm ml-2 flex-shrink-0">
                             {formatCurrency(product.price)}
                           </p>
                         </div>
                       ))}
                       {dashboardData.topProducts.length === 0 && (
-                        <div className="text-center py-4">
-                          <p className="text-gray-500">No product sales data</p>
+                        <div className="text-center py-8">
+                          <div className="text-4xl mb-2">🧋</div>
+                          <p className="text-amber-600 font-medium">
+                            No product sales yet
+                          </p>
                         </div>
                       )}
                     </div>
@@ -700,49 +561,49 @@ const Dashboard = () => {
               </div>
             </div>
 
-            {/* Right Column - Inventory & Quick Actions */}
-            <div className="space-y-8">
+            {/* Right Column */}
+            <div className="space-y-6 sm:space-y-8">
               {/* Stock Alerts */}
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-                <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-                  <h2 className="text-lg font-semibold text-gray-900">
-                    Stock Alerts
+              <div className="bg-white rounded-2xl shadow-xl border-2 border-amber-200">
+                <div className="px-4 sm:px-6 py-4 border-b-2 border-amber-200 flex justify-between items-center">
+                  <h2 className="text-lg font-bold text-amber-900 flex items-center gap-2">
+                    <span>🚨</span> Stock Alerts
                   </h2>
-                  <span className="text-sm text-red-600 bg-red-50 px-2 py-1 rounded">
-                    {dashboardData.lowStockProducts.length} alerts
+                  <span className="text-xs bg-red-100 text-red-700 px-3 py-1 rounded-lg font-bold">
+                    {dashboardData.lowStockProducts.length}
                   </span>
                 </div>
-                <div className="p-6">
+                <div className="p-4 sm:p-6">
                   <div className="space-y-3">
                     {dashboardData.lowStockProducts.map((product) => (
                       <div
                         key={product.id}
-                        className={`p-4 rounded-lg border-l-4 ${
+                        className={`p-4 rounded-xl border-l-4 ${
                           product.stock === 0
-                            ? "border-red-400 bg-red-50"
-                            : "border-orange-400 bg-orange-50"
+                            ? "border-red-500 bg-red-50"
+                            : "border-amber-500 bg-amber-50"
                         }`}
                       >
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <p className="font-medium text-gray-900 text-sm mb-1">
+                        <div className="flex justify-between items-start gap-3">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-amber-900 text-sm mb-1 truncate">
                               {product.name}
                             </p>
                             <p
-                              className={`text-xs font-medium ${
+                              className={`text-xs font-bold ${
                                 product.stock === 0
                                   ? "text-red-600"
-                                  : "text-orange-600"
+                                  : "text-amber-600"
                               }`}
                             >
                               {product.stock === 0
-                                ? "🛑 Out of stock"
-                                : `⚠️ ${product.stock} units left`}
+                                ? "🛑 Out of stock!"
+                                : `⚠️ Only ${product.stock} left`}
                             </p>
                           </div>
                           <Link
                             to="/products"
-                            className="text-xs text-blue-600 hover:text-blue-700 font-medium bg-white px-2 py-1 rounded border border-blue-200"
+                            className="flex-shrink-0 text-xs text-white bg-amber-600 hover:bg-amber-700 px-3 py-1.5 rounded-lg font-semibold transition-colors"
                           >
                             Restock
                           </Link>
@@ -750,24 +611,10 @@ const Dashboard = () => {
                       </div>
                     ))}
                     {dashboardData.lowStockProducts.length === 0 && (
-                      <div className="text-center py-4">
-                        <div className="text-green-400 mb-2">
-                          <svg
-                            className="w-12 h-12 mx-auto"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={1}
-                              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                            />
-                          </svg>
-                        </div>
-                        <p className="text-gray-500">
-                          All products are well stocked
+                      <div className="text-center py-8">
+                        <div className="text-5xl mb-3">✅</div>
+                        <p className="text-emerald-600 font-semibold">
+                          All products well stocked!
                         </p>
                       </div>
                     )}
@@ -776,95 +623,52 @@ const Dashboard = () => {
               </div>
 
               {/* Quick Actions */}
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-                <div className="px-6 py-4 border-b border-gray-200">
-                  <h2 className="text-lg font-semibold text-gray-900">
-                    Quick Actions
+              <div className="bg-white rounded-2xl shadow-xl border-2 border-amber-200">
+                <div className="px-4 sm:px-6 py-4 border-b-2 border-amber-200">
+                  <h2 className="text-lg font-bold text-amber-900 flex items-center gap-2">
+                    <span>⚡</span> Quick Actions
                   </h2>
                 </div>
-                <div className="p-6">
+                <div className="p-4 sm:p-6">
                   <div className="space-y-3">
                     {[
                       {
                         path: "/pos",
                         title: "New Sale",
                         subtitle: "Start POS terminal",
-                        icon: (
-                          <svg
-                            className="w-5 h-5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={1.5}
-                              d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v1m0 6v1m0-1v1m6-13h2a2 2 0 012 2v2a2 2 0 01-2 2h-2m-4 0H8a2 2 0 01-2-2V6a2 2 0 012-2h2m4 0h4a2 2 0 012 2v2a2 2 0 01-2 2h-4M4 18h2a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2v-2a2 2 0 012-2z"
-                            />
-                          </svg>
-                        ),
-                        color: "text-blue-600",
-                        bgColor: "bg-blue-50",
+                        icon: "💰",
+                        gradient: "from-emerald-500 to-green-600",
                       },
                       {
                         path: "/products",
                         title: "Manage Products",
                         subtitle: "Update inventory",
-                        icon: (
-                          <svg
-                            className="w-5 h-5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={1.5}
-                              d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
-                            />
-                          </svg>
-                        ),
-                        color: "text-green-600",
-                        bgColor: "bg-green-50",
+                        icon: "📦",
+                        gradient: "from-blue-500 to-indigo-600",
                       },
                       {
                         path: "/reports",
                         title: "View Reports",
                         subtitle: "Analytics & insights",
-                        icon: (
-                          <svg
-                            className="w-5 h-5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={1.5}
-                              d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                            />
-                          </svg>
-                        ),
-                        color: "text-purple-600",
-                        bgColor: "bg-purple-50",
+                        icon: "📊",
+                        gradient: "from-purple-500 to-pink-600",
                       },
                     ].map((action, index) => (
                       <Link
                         key={index}
                         to={action.path}
-                        className="flex items-center space-x-4 p-4 border border-gray-200 rounded-lg hover:border-gray-300 hover:shadow-sm transition-all"
+                        className="flex items-center gap-4 p-4 border-2 border-amber-200 rounded-xl hover:border-amber-300 hover:shadow-lg transition-all transform hover:scale-105"
                       >
-                        <div className={`p-2 rounded-lg ${action.bgColor}`}>
-                          <div className={action.color}>{action.icon}</div>
+                        <div
+                          className={`w-12 h-12 bg-gradient-to-br ${action.gradient} rounded-xl flex items-center justify-center shadow-md text-2xl`}
+                        >
+                          {action.icon}
                         </div>
                         <div>
-                          <p className="font-semibold text-gray-900 text-sm">
+                          <p className="font-bold text-amber-900">
                             {action.title}
                           </p>
-                          <p className="text-xs text-gray-500">
+                          <p className="text-xs text-amber-600">
                             {action.subtitle}
                           </p>
                         </div>
@@ -874,37 +678,37 @@ const Dashboard = () => {
                 </div>
               </div>
 
-              {/* Business Hours Performance */}
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-                <div className="px-6 py-4 border-b border-gray-200">
-                  <h2 className="text-lg font-semibold text-gray-900">
-                    Peak Hours
+              {/* Peak Hours */}
+              <div className="bg-white rounded-2xl shadow-xl border-2 border-amber-200">
+                <div className="px-4 sm:px-6 py-4 border-b-2 border-amber-200">
+                  <h2 className="text-lg font-bold text-amber-900 flex items-center gap-2">
+                    <span>⏰</span> Peak Hours
                   </h2>
                 </div>
-                <div className="p-6">
+                <div className="p-4 sm:p-6">
                   <div className="space-y-4">
                     {(dashboardData.hourlySales || [])
                       .slice(0, 4)
                       .map((hour) => (
                         <div
                           key={hour.hour}
-                          className="flex items-center justify-between py-2"
+                          className="flex items-center justify-between p-3 bg-amber-50 rounded-xl border border-amber-200"
                         >
-                          <div className="flex items-center space-x-3">
-                            <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                              <span className="text-xs font-medium text-gray-600">
-                                {formatHour(hour.hour)}
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-lg flex items-center justify-center shadow-sm">
+                              <span className="text-xs font-bold text-white">
+                                {formatHour(hour.hour).split(" ")[0]}
                               </span>
                             </div>
-                            <span className="text-sm text-gray-600">
+                            <span className="text-sm font-semibold text-amber-900">
                               {formatHour(hour.hour)}
                             </span>
                           </div>
                           <div className="text-right">
-                            <p className="text-sm font-semibold text-gray-900">
+                            <p className="text-sm font-bold text-emerald-600">
                               {formatCurrency(hour.total_revenue)}
                             </p>
-                            <p className="text-xs text-gray-500">
+                            <p className="text-xs text-amber-600">
                               {hour.transaction_count || 0} sales
                             </p>
                           </div>
@@ -912,8 +716,9 @@ const Dashboard = () => {
                       ))}
                     {(!dashboardData.hourlySales ||
                       dashboardData.hourlySales.length === 0) && (
-                      <div className="text-center py-4">
-                        <p className="text-gray-500">
+                      <div className="text-center py-8">
+                        <div className="text-4xl mb-2">⏰</div>
+                        <p className="text-amber-600 font-medium">
                           No hourly data available
                         </p>
                       </div>
