@@ -669,9 +669,9 @@ const POS = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         {/* Page Header */}
         <div className="mb-6 sm:mb-8">
-          <div className="inline-flex items-center gap-2 bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full text-xs font-bold mb-3">
-            <span className="w-1.5 h-1.5 bg-emerald-600 rounded-full animate-pulse"></span>
-            Live POS System
+          <div className="inline-flex items-center gap-2 bg-amber-100 text-amber-800 px-3 py-1 rounded-full text-xs font-bold mb-2">
+            <span className="w-1.5 h-1.5 bg-amber-600 rounded-full animate-pulse"></span>
+              Live POS System
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-amber-900 mb-1">
             Point of Sale
